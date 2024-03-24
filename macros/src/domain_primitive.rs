@@ -216,3 +216,49 @@ fn retrieve_lit_str_of_name<'a>(
 
     None
 }
+
+pub(crate) fn impl_string_primitive(input: DeriveInput) -> syn::Result<TokenStream2> {
+    let ident = &input.ident;
+    let generics = &input.generics;
+    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
+
+    // フィールドを持つ構造体であることを確認
+    let data_struct = is_data_struct(&input, MACRO_NAME)?;
+
+    // 名前付きフィールドを取得して、タプル構造体、またはユニット構造体でないことを確認
+    let fields = retrieve_named_fields(ident, data_struct, MACRO_NAME)?;
+
+    // 構造体が`String`型の名前付きフィールド`value`を持つか確認
+    if !has_value_string_field(fields) {
+        return Err(syn::Error::new(
+            ident.span(),
+            "StringPrimitive must have the `value` field of type `String`",
+        ));
+    }
+
+    Ok(quote! {
+        impl #impl_generics #ident #ty_generics #where_clause {
+            pub fn new<T: std::string::ToString>(value: T) -> DomainResult<Self> {
+                let instance = Self {
+                    value: value.to_string(),
+                };
+                match instance.validate() {
+                    Ok(_) => Ok(instance),
+                    Err(e) => Err(DomainError::Validation(format!("values is invalid: {e}").into())),
+                }
+            }
+        }
+    })
+}
+
+/// 構造体が`String`型の名前付きフィールド`value`を持つか確認する。
+///
+/// 現在の実装は、`value`フィールドが`String`型であるか確認する実装がない。
+///
+/// FIXME: `value`フィールドが`String`型であることを確認する実装
+fn has_value_string_field(fields: &FieldsNamed) -> bool {
+    fields
+        .named
+        .iter()
+        .any(|f| *f.ident.as_ref().unwrap() == "value")
+}
