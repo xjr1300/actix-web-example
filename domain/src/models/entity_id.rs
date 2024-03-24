@@ -17,7 +17,7 @@ pub struct EntityId<T> {
 }
 
 impl<'a, T> TryFrom<&'a str> for EntityId<T> {
-    type Error = DomainError<'a>;
+    type Error = DomainError;
 
     fn try_from(s: &str) -> Result<Self, Self::Error> {
         match Uuid::parse_str(s) {
