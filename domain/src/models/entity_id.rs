@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 
 use uuid::Uuid;
 
-use macros::ValueDisplay;
+use macros::DomainPrimitive;
 
 use crate::common::error::DomainError;
 
@@ -10,8 +10,9 @@ use crate::common::error::DomainError;
 ///
 /// UUID v4でエンティティを識別するIDを表現する。
 /// `PhantomData`でエンティティの型を識別する。
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, ValueDisplay)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, DomainPrimitive)]
 pub struct EntityId<T> {
+    #[value_getter(ret = "val")]
     value: Uuid,
     _phantom: PhantomData<T>,
 }
