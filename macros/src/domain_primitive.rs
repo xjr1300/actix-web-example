@@ -8,21 +8,21 @@ use syn::{Data, DataStruct, DeriveInput, Expr, Field, Fields, FieldsNamed, Ident
 
 use crate::types::CommaPunctuatedNameValues;
 
-const VALUE_GETTER_MACRO_NAME: &str = "ValueGetter";
+const MACRO_NAME: &str = "DomainPrimitive";
 
-pub(crate) fn impl_value_getter(input: DeriveInput) -> syn::Result<TokenStream2> {
+pub(crate) fn impl_domain_primitive(input: DeriveInput) -> syn::Result<TokenStream2> {
     let ident = &input.ident;
     let generics = &input.generics;
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
 
     // フィールドを持つ構造体であることを確認
-    let data_struct = is_data_struct(&input, VALUE_GETTER_MACRO_NAME)?;
+    let data_struct = is_data_struct(&input, MACRO_NAME)?;
 
     // 名前付きフィールドを取得して、タプル構造体、またはユニット構造体でないことを確認
-    let fields = retrieve_named_fields(ident, data_struct, VALUE_GETTER_MACRO_NAME)?;
+    let fields = retrieve_named_fields(ident, data_struct, MACRO_NAME)?;
 
     // `value`フィールドを取得
-    let field = retrieve_value_field(ident, fields, VALUE_GETTER_MACRO_NAME)?;
+    let field = retrieve_value_field(ident, fields, MACRO_NAME)?;
     let vis = &field.vis;
     let ty = &field.ty;
 
@@ -42,7 +42,7 @@ pub(crate) fn impl_value_getter(input: DeriveInput) -> syn::Result<TokenStream2>
         true => {
             quote! {
                 #vis fn value(&self) -> #ty {
-                    value
+                    self.value
                 }
             }
         }
@@ -69,32 +69,13 @@ pub(crate) fn impl_value_getter(input: DeriveInput) -> syn::Result<TokenStream2>
         impl #impl_generics #ident #ty_generics #where_clause{
             #token
         }
-    })
-}
 
-const VALUE_DISPLAY_MACRO_NAME: &str = "ValueDisplay";
-
-pub(crate) fn impl_value_display(input: DeriveInput) -> syn::Result<TokenStream2> {
-    let ident = &input.ident;
-    let generics = &input.generics;
-    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
-
-    // フィールドを持つ構造体であることを確認
-    let data_struct = is_data_struct(&input, VALUE_DISPLAY_MACRO_NAME)?;
-
-    // 名前付きフィールドを取得して、タプル構造体、またはユニット構造体でないことを確認
-    let fields = retrieve_named_fields(ident, data_struct, VALUE_DISPLAY_MACRO_NAME)?;
-
-    // `value`フィールドを持つか確認
-    has_value_field(ident, fields, VALUE_DISPLAY_MACRO_NAME)?;
-
-    Ok(quote!(
         impl #impl_generics std::fmt::Display for #ident #ty_generics #where_clause{
             fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
                 write!(f, "{}", self.value)
             }
         }
-    ))
+    })
 }
 
 /// フィールドを持つ構造体であることを確認する。
@@ -116,29 +97,6 @@ fn retrieve_named_fields<'a>(
 ) -> syn::Result<&'a FieldsNamed> {
     match &data_struct.fields {
         Fields::Named(fields) => Ok(fields),
-        _ => Err(syn::Error::new(
-            ident.span(),
-            format!(
-                "{} is expected a struct contain the `value` field",
-                macro_name
-            ),
-        )),
-    }
-}
-
-/// 構造体が`value`フィールドを持つか確認する。
-fn has_value_field<'a>(
-    ident: &'a Ident,
-    fields: &'a FieldsNamed,
-    macro_name: &str,
-) -> syn::Result<()> {
-    let field_idents = fields
-        .named
-        .iter()
-        .map(|f| f.ident.as_ref().unwrap())
-        .collect::<Vec<&Ident>>();
-    match field_idents.iter().any(|ident| *ident == "value") {
-        true => Ok(()),
         _ => Err(syn::Error::new(
             ident.span(),
             format!(
