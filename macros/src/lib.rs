@@ -2,7 +2,7 @@ use proc_macro::TokenStream;
 use syn::{parse_macro_input, DeriveInput};
 
 mod domain_primitive;
-use domain_primitive::impl_domain_primitive;
+use domain_primitive::{impl_domain_primitive, impl_string_primitive};
 mod types;
 
 /// `DomainPrimitive`導出マクロ
@@ -19,6 +19,19 @@ pub fn derive_domain_primitive(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
 
     match impl_domain_primitive(input) {
+        Ok(token_stream) => TokenStream::from(token_stream),
+        Err(err) => TokenStream::from(err.into_compile_error()),
+    }
+}
+
+/// `StringPrimitive`導出マクロ
+///
+/// `value`フィールドを持つ構造体に、`new`メソッドを実装する。
+#[proc_macro_derive(StringPrimitive)]
+pub fn derive_string_primitive(input: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(input as DeriveInput);
+
+    match impl_string_primitive(input) {
         Ok(token_stream) => TokenStream::from(token_stream),
         Err(err) => TokenStream::from(err.into_compile_error()),
     }
