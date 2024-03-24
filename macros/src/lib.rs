@@ -5,9 +5,9 @@ mod domain_primitive;
 use domain_primitive::impl_domain_primitive;
 mod types;
 
-/// `ValueGetter`導出マクロ
+/// `DomainPrimitive`導出マクロ
 ///
-/// `value`フィールドを持つ構造体に、`value`メソッドを実装する。
+/// `value`フィールドを持つ構造体に、`value`メソッドと`std::fmt::Display`を実装する。
 ///
 /// 1. `value`フィールドが`Copy`トレイトを実装している型の場合、`#[value_getter(ret = "val")]`
 /// 2. `value`フィールドが`Copy`トレイトを実装していない型で、その参照を`value`メソッドが返す場合、`#[value_getter(ret = "ref")]`
