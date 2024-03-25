@@ -90,9 +90,9 @@ fn validate_plain_password(s: &str) -> DomainResult<()> {
 #[derive(Debug, Clone)]
 pub struct PasswordPepper(pub SecretString);
 
-/// PHC文字列
+/// PHCパスワード文字列
 #[derive(Debug, Clone, DomainPrimitive)]
-pub struct PHCString {
+pub struct PhcPassword {
     #[value_getter(ret = "ref")]
     value: SecretString,
 }
@@ -110,7 +110,7 @@ pub struct PHCString {
 pub fn generate_phc_string(
     raw_password: &RawPassword,
     pepper: &PasswordPepper,
-) -> DomainResult<PHCString> {
+) -> DomainResult<PhcPassword> {
     // パスワードにペッパーを振りかけ
     let peppered_password = sprinkle_pepper_on_password(raw_password, pepper);
     // ソルトを生成
@@ -134,7 +134,7 @@ pub fn generate_phc_string(
         })?
         .to_string();
 
-    Ok(PHCString {
+    Ok(PhcPassword {
         value: SecretString::new(phc),
     })
 }
@@ -153,7 +153,7 @@ pub fn generate_phc_string(
 pub fn verify_password(
     raw_password: &RawPassword,
     pepper: &PasswordPepper,
-    target_phc: &PHCString,
+    target_phc: &PhcPassword,
 ) -> DomainResult<bool> {
     // PHC文字列をパースしてハッシュ値を取得
     let expected_hash = PasswordHash::new(target_phc.value().expose_secret()).map_err(|e| {
@@ -182,7 +182,7 @@ fn sprinkle_pepper_on_password(
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use std::str::FromStr as _;
 
     use secrecy::{ExposeSecret as _, SecretString};
@@ -192,7 +192,7 @@ mod tests {
     use super::{generate_phc_string, PasswordPepper, RawPassword};
 
     /// 未加工なパスワードとして使用できる文字列
-    const VALID_RAW_PASSWORD: &str = "Az3#Za3@";
+    pub const VALID_RAW_PASSWORD: &str = "Az3#Za3@";
 
     /// 有効な文字列から、未加工なパスワードを構築できることを確認
     #[test]

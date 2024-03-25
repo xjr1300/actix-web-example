@@ -10,7 +10,7 @@ use crate::common::error::DomainError;
 ///
 /// UUID v4でエンティティを識別するIDを表現する。
 /// `PhantomData`でエンティティの型を識別する。
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, DomainPrimitive)]
+#[derive(Debug, PartialEq, Eq, Hash, DomainPrimitive)]
 pub struct EntityId<T> {
     #[value_getter(ret = "val")]
     value: Uuid,
@@ -29,6 +29,23 @@ impl<'a, T> TryFrom<&'a str> for EntityId<T> {
             Err(_) => Err(DomainError::Validation(
                 "could not recognize as UUID v4 format string".into(),
             )),
+        }
+    }
+}
+
+impl<T> Copy for EntityId<T> {}
+
+impl<T> Clone for EntityId<T> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<T> Default for EntityId<T> {
+    fn default() -> Self {
+        Self {
+            value: Uuid::new_v4(),
+            _phantom: Default::default(),
         }
     }
 }

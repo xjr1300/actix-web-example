@@ -1,28 +1,18 @@
 use once_cell::sync::Lazy;
 use regex::Regex;
+use time::OffsetDateTime;
 use validator::Validate;
 
-use macros::{DomainPrimitive, PrimitiveDisplay, StringPrimitive};
+use macros::{DomainPrimitive, Getter, PrimitiveDisplay, StringPrimitive};
 
 use crate::common::error::{DomainError, DomainResult};
+use crate::models::entity_id::EntityId;
+use crate::models::passwords::PhcPassword;
+
+/// ユーザーID
+pub type UserId = EntityId<User>;
 
 /// ユーザー
-///
-/// ユーザーが保有するフィールドを次に示す。
-///
-/// * ユーザーID
-/// * Eメール・アドレス
-/// * パスワード
-/// * アクティブ・フラグ
-/// * 名前（姓）
-/// * 名前（名）
-/// * 郵便番号
-/// * 住所
-/// * 固定電話番号
-/// * 携帯電話番号
-/// * 備考
-/// * 作成日時
-/// * 更新日時
 ///
 /// ユーザーは、固定電話番号または携帯電話番号の両方またはどちらかを記録しなければならない。
 /// ユーザーは、Eメール・アドレスとパスワードで認証する。
@@ -31,7 +21,93 @@ use crate::common::error::{DomainError, DomainResult};
 /// 認証に失敗させて、次回以降の認証をすべて拒否する。
 /// ユーザーを登録するとき、PostgresSQLの場合、作成日時と更新日時に`STATEMENT_TIMESTAMP()`を使用して、
 /// 同じ日時が記録されるようにする。
+#[derive(Debug, Clone, Getter)]
+pub struct User {
+    /// ユーザーID
+    #[getter(ret = "val")]
+    id: UserId,
+    /// Eメール・アドレス
+    #[getter(ret = "ref")]
+    email: EmailAddress,
+    /// パスワード（PHC文字列）
+    #[getter(ret = "ref")]
+    password: PhcPassword,
+    /// アクティブ・フラグ
+    #[getter(ret = "val")]
+    active: bool,
+    /// 氏名の苗字
+    #[getter(ret = "ref")]
+    family_name: FamilyName,
+    /// 氏名の名前
+    #[getter(ret = "ref")]
+    given_name: GivenName,
+    /// 郵便番号
+    #[getter(ret = "ref")]
+    postal_code: PostalCode,
+    /// 住所
+    #[getter(ret = "ref")]
+    address: Address,
+    /// 固定電話番号
+    #[getter(ret = "ref")]
+    fixed_phone_number: Option<FixedPhoneNumber>,
+    /// 携帯電話番号
+    #[getter(ret = "ref")]
+    mobile_phone_number: Option<MobilePhoneNumber>,
+    /// 備考
+    #[getter(ret = "ref")]
+    remarks: Option<Remarks>,
+    /// 作成日時
+    #[getter(ret = "val")]
+    created_at: OffsetDateTime,
+    /// 更新日時
+    #[getter(ret = "val")]
+    updated_at: OffsetDateTime,
+}
 
+impl User {
+    /// ユーザーを構築する。
+    ///
+    /// 作成日時と更新日時は、UTCの現在日時を設定する。
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        id: UserId,
+        email: EmailAddress,
+        password: PhcPassword,
+        active: bool,
+        family_name: FamilyName,
+        given_name: GivenName,
+        postal_code: PostalCode,
+        address: Address,
+        fixed_phone_number: Option<FixedPhoneNumber>,
+        mobile_phone_number: Option<MobilePhoneNumber>,
+        remarks: Option<Remarks>,
+    ) -> DomainResult<Self> {
+        // 固定電話番号または携帯電話番号を指定していない場合はエラー
+        if fixed_phone_number.is_none() && mobile_phone_number.is_none() {
+            return Err(DomainError::DomainRule(
+                "must provide at least a fixed phone number or mobile phone number".into(),
+            ));
+        }
+        // 現在の日時を取得
+        let dt = OffsetDateTime::now_utc();
+
+        Ok(Self {
+            id,
+            email,
+            password,
+            active,
+            family_name,
+            given_name,
+            postal_code,
+            address,
+            fixed_phone_number,
+            mobile_phone_number,
+            remarks,
+            created_at: dt,
+            updated_at: dt,
+        })
+    }
+}
 /// Eメール・アドレス
 #[derive(Debug, Clone, Validate, DomainPrimitive, PrimitiveDisplay, StringPrimitive)]
 pub struct EmailAddress {
@@ -112,8 +188,91 @@ pub struct Remarks {
 
 #[cfg(test)]
 mod tests {
-    use super::{EmailAddress, FamilyName, FixedPhoneNumber, PostalCode};
-    use crate::{common::error::DomainError, models::user::MobilePhoneNumber};
+    use secrecy::SecretString;
+
+    use super::{
+        Address, EmailAddress, FamilyName, FixedPhoneNumber, MobilePhoneNumber, PostalCode,
+        Remarks, User, UserId,
+    };
+    use crate::common::error::DomainError;
+    use crate::models::passwords::tests::VALID_RAW_PASSWORD;
+    use crate::models::passwords::{generate_phc_string, PasswordPepper, RawPassword};
+
+    /// ユーザーを構築できることを確認
+    #[test]
+    fn construct_user_from_valid_args() {
+        let id = UserId::default();
+        let email = EmailAddress::new("foo@example.com").unwrap();
+        let plain_password = SecretString::new(String::from(VALID_RAW_PASSWORD));
+        let raw_password = RawPassword::new(plain_password).unwrap();
+        let password_pepper = PasswordPepper(SecretString::new(String::from("password-pepper")));
+        let password = generate_phc_string(&raw_password, &password_pepper).unwrap();
+        let active = true;
+        let family_name = FamilyName::new("foo").unwrap();
+        let given_name = super::GivenName::new("bar").unwrap();
+        let postal_code = PostalCode::new("012-3456").unwrap();
+        let address = Address::new("foo bar baz qux").unwrap();
+        let phone_number_pairs = [
+            (
+                Some(FixedPhoneNumber::new("03-1234-5678").unwrap()),
+                Some(MobilePhoneNumber::new("090-1234-5678").unwrap()),
+            ),
+            (Some(FixedPhoneNumber::new("03-1234-5678").unwrap()), None),
+            (None, Some(MobilePhoneNumber::new("090-1234-5678").unwrap())),
+        ];
+        let remarks = Some(Remarks::new(String::from("remarks")).unwrap());
+        for (fixed_phone_number, mobile_phone_number) in phone_number_pairs {
+            assert!(
+                User::new(
+                    id,
+                    email.clone(),
+                    password.clone(),
+                    active,
+                    family_name.clone(),
+                    given_name.clone(),
+                    postal_code.clone(),
+                    address.clone(),
+                    fixed_phone_number.clone(),
+                    mobile_phone_number.clone(),
+                    remarks.clone()
+                )
+                .is_ok(),
+                "{:?}, {:?}",
+                fixed_phone_number,
+                mobile_phone_number
+            );
+        }
+    }
+
+    /// 固定電話番号と携帯電話番号の両方とも指定していない場合に、ユーザーを構築できないことを確認
+    #[test]
+    fn can_not_construct_user_when_both_fixed_phone_number_and_mobile_is_none() {
+        let id = UserId::default();
+        let email = EmailAddress::new("foo@example.com").unwrap();
+        let plain_password = SecretString::new(String::from(VALID_RAW_PASSWORD));
+        let raw_password = RawPassword::new(plain_password).unwrap();
+        let password_pepper = PasswordPepper(SecretString::new(String::from("password-pepper")));
+        let password = generate_phc_string(&raw_password, &password_pepper).unwrap();
+        let active = true;
+        let family_name = FamilyName::new("foo").unwrap();
+        let given_name = super::GivenName::new("bar").unwrap();
+        let postal_code = PostalCode::new("012-3456").unwrap();
+        let address = Address::new("foo bar baz qux").unwrap();
+        assert!(User::new(
+            id,
+            email,
+            password,
+            active,
+            family_name,
+            given_name,
+            postal_code,
+            address,
+            None,
+            None,
+            None,
+        )
+        .is_err(),);
+    }
 
     /// Eメール・アドレスとして妥当な文字列から、Eメール・アドレスを構築できることを確認
     #[test]
