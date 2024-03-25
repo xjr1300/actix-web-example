@@ -13,5 +13,11 @@ rand = "0.8.5"
 regex = "1.10.4"
 secrecy = { version = "0.8.0", features = ["alloc", "serde"] }
 thiserror = "1.0.58"
+time = { version = "0.3.34", features = [
+    "parsing",
+    "formatting",
+    "serde",
+    "macros",
+] }
 uuid = { version = "1.8.0", features = ["v4", "serde"] }
 validator = { version = "0.17.0", features = ["derive"] }
