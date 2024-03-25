@@ -267,7 +267,7 @@ pub(crate) fn impl_string_primitive(input: DeriveInput) -> syn::Result<TokenStre
                 };
                 match instance.validate() {
                     Ok(_) => Ok(instance),
-                    Err(e) => Err(DomainError::DomainRule(format!("values is invalid: {e}").into())),
+                    Err(e) => Err(DomainError::DomainRule(format!("value is invalid: {e}").into())),
                 }
             }
         }
