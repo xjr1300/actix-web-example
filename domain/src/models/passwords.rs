@@ -8,7 +8,7 @@ use macros::DomainPrimitive;
 use secrecy::{ExposeSecret as _, SecretString};
 use validator::Validate;
 
-use crate::common::error::{DomainError, DomainResult};
+use crate::common::{DomainError, DomainResult};
 
 /// 未加工なパスワード
 ///
@@ -187,9 +187,8 @@ pub(crate) mod tests {
 
     use secrecy::{ExposeSecret as _, SecretString};
 
-    use crate::{common::error::DomainError, models::passwords::verify_password};
-
-    use super::{generate_phc_string, PasswordPepper, RawPassword};
+    use crate::models::passwords::{generate_phc_string, PasswordPepper, RawPassword};
+    use crate::{common::DomainError, models::passwords::verify_password};
 
     /// 未加工なパスワードとして使用できる文字列
     pub const VALID_RAW_PASSWORD: &str = "Az3#Za3@";

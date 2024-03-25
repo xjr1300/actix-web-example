@@ -5,9 +5,9 @@ use validator::Validate;
 
 use macros::{DomainPrimitive, Getter, PrimitiveDisplay, StringPrimitive};
 
-use crate::common::error::{DomainError, DomainResult};
-use crate::models::entity_id::EntityId;
+use crate::common::{DomainError, DomainResult};
 use crate::models::passwords::PhcPassword;
+use crate::models::EntityId;
 
 /// ユーザーID
 pub type UserId = EntityId<User>;
@@ -194,7 +194,7 @@ mod tests {
         Address, EmailAddress, FamilyName, FixedPhoneNumber, MobilePhoneNumber, PostalCode,
         Remarks, User, UserId,
     };
-    use crate::common::error::DomainError;
+    use crate::common::DomainError;
     use crate::models::passwords::tests::VALID_RAW_PASSWORD;
     use crate::models::passwords::{generate_phc_string, PasswordPepper, RawPassword};
 
