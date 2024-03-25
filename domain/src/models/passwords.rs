@@ -2,6 +2,8 @@ use std::collections::HashMap;
 use std::str::FromStr as _;
 
 use anyhow::anyhow;
+use argon2::password_hash::SaltString;
+use argon2::{Algorithm, Argon2, Params, PasswordHash, PasswordHasher, PasswordVerifier, Version};
 use macros::DomainPrimitive;
 use secrecy::{ExposeSecret as _, SecretString};
 use validator::Validate;
@@ -84,15 +86,110 @@ fn validate_plain_password(s: &str) -> DomainResult<()> {
     Ok(())
 }
 
+/// パスワード・ペッパー
+#[derive(Debug, Clone)]
+pub struct PasswordPepper(pub SecretString);
+
+/// PHC文字列
+#[derive(Debug, Clone, DomainPrimitive)]
+pub struct PHCString {
+    #[value_getter(ret = "ref")]
+    value: SecretString,
+}
+
+/// Argon2idアルゴリズムでパスワードをハッシュ化した、PHC文字列を生成する。
+///
+/// # 引数
+///
+/// * `raw_password` - 未加工なパスワード
+/// * `pepper` - パスワードに付与するペッパー
+///
+/// # 戻り値
+///
+/// PHC文字列
+pub fn generate_phc_string(
+    raw_password: &RawPassword,
+    pepper: &PasswordPepper,
+) -> DomainResult<PHCString> {
+    // パスワードにペッパーを振りかけ
+    let peppered_password = sprinkle_pepper_on_password(raw_password, pepper);
+    // ソルトを生成
+    let salt = SaltString::generate(&mut rand::thread_rng());
+    // ハッシュ化パラメーターを設定
+    // https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html
+    let params = Params::new(15_000, 2, 1, None).map_err(|e| {
+        DomainError::Unexpected(anyhow!(
+            "unexpected error raised when constructing argon2 params: {}",
+            e
+        ))
+    })?;
+    // PHC文字列を生成
+    let phc = Argon2::new(Algorithm::Argon2id, Version::V0x13, params)
+        .hash_password(peppered_password.expose_secret().as_bytes(), &salt)
+        .map_err(|e| {
+            DomainError::Unexpected(anyhow!(
+                "unexpected error raised when generating phc string by argon2: {}",
+                e
+            ))
+        })?
+        .to_string();
+
+    Ok(PHCString {
+        value: SecretString::new(phc),
+    })
+}
+
+/// パスワードを検証する。
+///
+/// # 引数
+///
+/// * `raw_password` - 検証する未加工なパスワード
+/// * `pepper` - 未加工なパスワードに振りかけるペッパー
+/// * `target_phc` - パスワードを検証する対象のPHC文字列
+///
+/// # 戻り値
+///
+/// パスワードの検証に成功した場合は`true`、それ以外の場合は`false`
+pub fn verify_password(
+    raw_password: &RawPassword,
+    pepper: &PasswordPepper,
+    target_phc: &PHCString,
+) -> DomainResult<bool> {
+    // PHC文字列をパースしてハッシュ値を取得
+    let expected_hash = PasswordHash::new(target_phc.value().expose_secret()).map_err(|e| {
+        DomainError::Unexpected(anyhow!(
+            "unexpected error raised when retrieving hash from phc string: {}",
+            e
+        ))
+    })?;
+    // パスワードにコショウを振りかけ
+    let expected_password = sprinkle_pepper_on_password(raw_password, pepper);
+
+    Ok(Argon2::default()
+        .verify_password(expected_password.expose_secret().as_bytes(), &expected_hash)
+        .is_ok())
+}
+
+/// パスワードにコショウを振りかける。
+fn sprinkle_pepper_on_password(
+    raw_password: &RawPassword,
+    pepper: &PasswordPepper,
+) -> SecretString {
+    let mut password = raw_password.value().expose_secret().to_string();
+    password.push_str(pepper.0.expose_secret());
+
+    SecretString::new(password)
+}
+
 #[cfg(test)]
 mod tests {
     use std::str::FromStr as _;
 
     use secrecy::{ExposeSecret as _, SecretString};
 
-    use crate::common::error::DomainError;
+    use crate::{common::error::DomainError, models::passwords::verify_password};
 
-    use super::RawPassword;
+    use super::{generate_phc_string, PasswordPepper, RawPassword};
 
     /// 未加工なパスワードとして使用できる文字列
     const VALID_RAW_PASSWORD: &str = "Az3#Za3@";
@@ -194,5 +291,33 @@ mod tests {
                 }
             }
         }
+    }
+
+    /// パスワードをハッシュ化したPHC文字列を生成した後、同じパスワードで検証に成功することを確認
+    #[test]
+    fn generate_a_phc_string_and_check_that_verification_is_successful_with_the_same_password() {
+        // PHC文字列を生成
+        let raw_password =
+            RawPassword::new(SecretString::new(String::from(VALID_RAW_PASSWORD))).unwrap();
+        let pepper = PasswordPepper(SecretString::new(String::from("asdf")));
+        let phc_string = generate_phc_string(&raw_password, &pepper).unwrap();
+        println!("PHC String: {}", phc_string.value().expose_secret());
+        // 同じパスワードで検証に成功するか確認
+        assert!(verify_password(&raw_password, &pepper, &phc_string).unwrap());
+    }
+
+    /// パスワードをハッシュ化したPHC文字列を生成した後、PHC文字列を生成したパスワードと異なるパスワードが検証に失敗することを確認
+    #[test]
+    fn generate_a_phc_string_and_check_that_verification_is_failure_with_different_passwords() {
+        // PHC文字列を生成
+        let raw_password =
+            RawPassword::new(SecretString::new(String::from(VALID_RAW_PASSWORD))).unwrap();
+        let pepper = PasswordPepper(SecretString::new(String::from("asdf")));
+        let phc_string = generate_phc_string(&raw_password, &pepper).unwrap();
+        // 同じパスワードで検証に失敗するか確認
+        let different_password = "fooBar123%";
+        let different_password =
+            RawPassword::new(SecretString::new(String::from(different_password))).unwrap();
+        assert!(!verify_password(&different_password, &pepper, &phc_string).unwrap());
     }
 }
