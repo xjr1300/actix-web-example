@@ -6,6 +6,7 @@ edition = "2021"
 [dependencies]
 anyhow = "1.0.81"
 macros = { path = "../macros" }
+secrecy = { version = "0.8.0", features = ["alloc", "serde"] }
 thiserror = "1.0.58"
 uuid = { version = "1.8.0", features = ["v4", "serde"] }
 validator = { version = "0.17.0", features = ["derive"] }

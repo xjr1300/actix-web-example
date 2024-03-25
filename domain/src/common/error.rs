@@ -3,6 +3,10 @@ use std::borrow::Cow;
 /// ドメイン・エラー
 #[derive(Debug, thiserror::Error)]
 pub enum DomainError {
+    /// 予期していないエラー
+    #[error("{0}")]
+    Unexpected(anyhow::Error),
+
     /// 検証エラー
     ///
     /// 文字列を数値に変換できない場合など、ドメイン・ルールを伴わない検証エラーを表現する。
