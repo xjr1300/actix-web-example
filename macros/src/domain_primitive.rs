@@ -69,7 +69,29 @@ pub(crate) fn impl_domain_primitive(input: DeriveInput) -> syn::Result<TokenStre
         impl #impl_generics #ident #ty_generics #where_clause{
             #token
         }
+    })
+}
 
+pub(crate) fn impl_primitive_display(input: DeriveInput) -> syn::Result<TokenStream2> {
+    let ident = &input.ident;
+    let generics = &input.generics;
+    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
+
+    // フィールドを持つ構造体であることを確認
+    let data_struct = is_data_struct(&input, MACRO_NAME)?;
+
+    // 名前付きフィールドを取得して、タプル構造体、またはユニット構造体でないことを確認
+    let fields = retrieve_named_fields(ident, data_struct, MACRO_NAME)?;
+
+    // 構造体が`value`フィールドを持つか確認
+    if !has_value_field(fields) {
+        return Err(syn::Error::new(
+            ident.span(),
+            "PrimitiveDisplay must have the `value` field",
+        ));
+    }
+
+    Ok(quote! {
         impl #impl_generics std::fmt::Display for #ident #ty_generics #where_clause{
             fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
                 write!(f, "{}", self.value)
@@ -77,7 +99,6 @@ pub(crate) fn impl_domain_primitive(input: DeriveInput) -> syn::Result<TokenStre
         }
     })
 }
-
 /// フィールドを持つ構造体であることを確認する。
 fn is_data_struct<'a>(input: &'a DeriveInput, macro_name: &str) -> syn::Result<&'a DataStruct> {
     match &input.data {
@@ -228,8 +249,9 @@ pub(crate) fn impl_string_primitive(input: DeriveInput) -> syn::Result<TokenStre
     // 名前付きフィールドを取得して、タプル構造体、またはユニット構造体でないことを確認
     let fields = retrieve_named_fields(ident, data_struct, MACRO_NAME)?;
 
-    // 構造体が`String`型の名前付きフィールド`value`を持つか確認
-    if !has_value_string_field(fields) {
+    // 構造体が`value`フィールドを持つか確認
+    // FIXME: `value`フィールドが`String`型であることを確認する実装
+    if !has_value_field(fields) {
         return Err(syn::Error::new(
             ident.span(),
             "StringPrimitive must have the `value` field of type `String`",
@@ -251,12 +273,8 @@ pub(crate) fn impl_string_primitive(input: DeriveInput) -> syn::Result<TokenStre
     })
 }
 
-/// 構造体が`String`型の名前付きフィールド`value`を持つか確認する。
-///
-/// 現在の実装は、`value`フィールドが`String`型であるか確認する実装がない。
-///
-/// FIXME: `value`フィールドが`String`型であることを確認する実装
-fn has_value_string_field(fields: &FieldsNamed) -> bool {
+/// 構造体が`value`フィールドを持つか確認する。
+fn has_value_field(fields: &FieldsNamed) -> bool {
     fields
         .named
         .iter()
