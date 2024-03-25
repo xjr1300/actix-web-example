@@ -40,6 +40,9 @@ pub fn derive_primitive_display(input: TokenStream) -> TokenStream {
 /// `StringPrimitive`導出マクロ
 ///
 /// `value`フィールドを持つ構造体に、`new`メソッドを実装する。
+///
+/// ドメイン・プリミティブ構造体のインスタンスを構築する`new`メソッドは、引数として渡された
+/// 文字列の前後の空白文字を除去（トリム）した文字列を値として格納する。
 #[proc_macro_derive(StringPrimitive)]
 pub fn derive_string_primitive(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);

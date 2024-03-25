@@ -261,12 +261,13 @@ pub(crate) fn impl_string_primitive(input: DeriveInput) -> syn::Result<TokenStre
     Ok(quote! {
         impl #impl_generics #ident #ty_generics #where_clause {
             pub fn new<T: std::string::ToString>(value: T) -> DomainResult<Self> {
+                let value = value.to_string().trim().to_string();
                 let instance = Self {
-                    value: value.to_string(),
+                    value,
                 };
                 match instance.validate() {
                     Ok(_) => Ok(instance),
-                    Err(e) => Err(DomainError::Validation(format!("values is invalid: {e}").into())),
+                    Err(e) => Err(DomainError::DomainRule(format!("values is invalid: {e}").into())),
                 }
             }
         }
