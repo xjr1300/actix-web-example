@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 
 use uuid::Uuid;
 
-use macros::ValueDisplay;
+use macros::DomainPrimitive;
 
 use crate::common::error::DomainError;
 
@@ -10,14 +10,15 @@ use crate::common::error::DomainError;
 ///
 /// UUID v4でエンティティを識別するIDを表現する。
 /// `PhantomData`でエンティティの型を識別する。
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, ValueDisplay)]
+#[derive(Debug, PartialEq, Eq, Hash, DomainPrimitive)]
 pub struct EntityId<T> {
+    #[value_getter(ret = "val")]
     value: Uuid,
     _phantom: PhantomData<T>,
 }
 
 impl<'a, T> TryFrom<&'a str> for EntityId<T> {
-    type Error = DomainError<'a>;
+    type Error = DomainError;
 
     fn try_from(s: &str) -> Result<Self, Self::Error> {
         match Uuid::parse_str(s) {
@@ -28,6 +29,23 @@ impl<'a, T> TryFrom<&'a str> for EntityId<T> {
             Err(_) => Err(DomainError::Validation(
                 "could not recognize as UUID v4 format string".into(),
             )),
+        }
+    }
+}
+
+impl<T> Copy for EntityId<T> {}
+
+impl<T> Clone for EntityId<T> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<T> Default for EntityId<T> {
+    fn default() -> Self {
+        Self {
+            value: Uuid::new_v4(),
+            _phantom: Default::default(),
         }
     }
 }
