@@ -43,7 +43,7 @@ const PASSWORD_MIN_LENGTH: usize = 8;
 const PASSWORD_SYMBOLS_CANDIDATES: &str = r#"~`!@#$%^&*()_-+={[}]|\:;"'<,>.?/"#;
 /// パスワードに同じ文字が存在することを許容する最大数
 /// 指定された数だけ同じ文字をパスワードに含めることを許可
-const PASSWORD_MAX_NUMBER_OF_SAME_CHAR: u64 = 3;
+const PASSWORD_MAX_NUMBER_OF_CHAR_APPEARANCES: u64 = 3;
 
 /// パスワードがドメイン・ルールを満たしているか確認する。
 fn validate_plain_password(s: &str) -> DomainResult<()> {
@@ -76,10 +76,10 @@ fn validate_plain_password(s: &str) -> DomainResult<()> {
     s.chars().for_each(|ch| {
         *number_of_chars.entry(ch).or_insert(0) += 1;
     });
-    let max_number_of_same_char = number_of_chars.values().max().unwrap();
-    if PASSWORD_MAX_NUMBER_OF_SAME_CHAR < *max_number_of_same_char {
+    let max_number_of_appearances = number_of_chars.values().max().unwrap();
+    if PASSWORD_MAX_NUMBER_OF_CHAR_APPEARANCES < *max_number_of_appearances {
         return Err(DomainError::DomainRule(
-            format!("password cannot contain more than {PASSWORD_MAX_NUMBER_OF_SAME_CHAR} of the same character").into()
+            format!("password cannot contain more than {PASSWORD_MAX_NUMBER_OF_CHAR_APPEARANCES} of the same character").into()
         ));
     }
 

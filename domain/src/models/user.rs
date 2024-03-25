@@ -89,6 +89,8 @@ impl User {
             ));
         }
         // 現在の日時を取得
+        // FIXME: ローカルな日時を設定したいが、`OffsetDateTime::now_local()`が動作しない。
+        // よって、`time`クレートのfeaturesに`local-offset`を設定していない。
         let dt = OffsetDateTime::now_utc();
 
         Ok(Self {
@@ -108,6 +110,7 @@ impl User {
         })
     }
 }
+
 /// Eメール・アドレス
 #[derive(Debug, Clone, Validate, DomainPrimitive, PrimitiveDisplay, StringPrimitive)]
 pub struct EmailAddress {
@@ -271,7 +274,7 @@ mod tests {
             None,
             None,
         )
-        .is_err(),);
+        .is_err());
     }
 
     /// Eメール・アドレスとして妥当な文字列から、Eメール・アドレスを構築できることを確認
