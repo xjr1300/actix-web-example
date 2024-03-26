@@ -1,17 +1,18 @@
-use std::path::Path;
+use std::net::TcpListener;
 
-use server::settings::SETTINGS_DIR_NAME;
+use anyhow::Context as _;
 
+/// ヘルス・チェック・ハンドラ
 #[tokio::test]
 #[ignore]
 async fn health_check_works() -> anyhow::Result<()> {
     // 準備
-    spawn_app().await?;
+    let address = spawn_http_server().await?;
     let client = reqwest::Client::new();
 
     // 実行
     let response = client
-        .get("http://localhost:8000/")
+        .get(&format!("{address}/health_check"))
         .send()
         .await
         .expect("Failed to execute request.");
@@ -23,11 +24,16 @@ async fn health_check_works() -> anyhow::Result<()> {
     Ok(())
 }
 
-async fn spawn_app() -> anyhow::Result<()> {
-    let dir = Path::new(env!("CARGO_MANIFEST_DIR"));
-    let settings_dir = dir.join("..").join(SETTINGS_DIR_NAME);
-    let server = server::startup::run(settings_dir).await?;
+/// 統合テスト用のHTTPサーバーを起動する。
+///
+/// # 戻り値
+///
+/// 統合テスト用のHTTPサーバーのルートURI
+async fn spawn_http_server() -> anyhow::Result<String> {
+    let listener = TcpListener::bind("localhost:0").context("failed to bind random port")?;
+    let port = listener.local_addr().unwrap().port();
+    let server = server::startup::build_http_server(listener)?;
     tokio::spawn(server);
 
-    Ok(())
+    Ok(format!("http://localhost:{}", port))
 }
