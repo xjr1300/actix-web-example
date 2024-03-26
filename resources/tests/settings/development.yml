@@ -1,0 +1,4 @@
+http_server:
+  port: 8000
+logging:
+  level: debug

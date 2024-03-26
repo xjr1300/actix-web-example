@@ -1,5 +1,18 @@
 # actix-web-example
 
+## 設定
+
+### 環境変数
+
+* 環境変数`APP_ENVIRONMENT`からアプリケーションの動作環境を取得
+* 環境変数`APP_ENVIRONMENT`には、`development`、`production`を設定できそれぞれ開発環境と運用環境を表現
+
+### アプリケーション設定
+
+* `settings`ディレクトリの`default.yml`からアプリケーションの設定を読み込む
+* 次に、アプリケーションの動作環境が開発環境であれば`settings`ディレクトリの`development.yml`を、
+  運用環境であれば`production.yml`を読み込み、`default.yml`に定義された設定を上書き
+
 ## ログの記録
 
 * `tracing`クレート及びそれに関連するクレートを利用してログを記録

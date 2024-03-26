@@ -15,10 +15,10 @@ use tracing_subscriber::{EnvFilter, Registry};
 /// # 戻り値
 ///
 /// ログを購読するサブスクライバ
-pub fn generate_log_subscriber(name: String, default_level: &str) -> impl Subscriber {
-    // ログをフィルタする条件を環境変数から取得
-    let env_filter =
-        EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(default_level));
+pub fn generate_log_subscriber(name: String, default_level: log::Level) -> impl Subscriber {
+    // 環境変数`RUST_LOG`からログをフィルタするレベルを取得
+    let env_filter = EnvFilter::try_from_default_env()
+        .unwrap_or_else(|_| EnvFilter::new(default_level.as_str()));
 
     // ログを購読するサブスクライバを構築
     let formatting_layer = BunyanFormattingLayer::new(name, std::io::stdout);
