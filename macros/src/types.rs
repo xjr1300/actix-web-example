@@ -8,7 +8,7 @@ pub(crate) type CommaPunctuatedNameValues = Punctuated<MetaNameValue, Token![,]>
 ///
 /// 名前付きフィールド構造体やタプル構造体のフィールドを表現する。
 ///
-/// ```rust
+/// ```text
 /// struct Bar {
 ///     x: i32,
 ///     y: String,
