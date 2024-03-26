@@ -14,11 +14,19 @@ pub type UserId = EntityId<User>;
 
 /// ユーザー
 ///
+/// # ドメイン・ルール
+///
 /// ユーザーは、固定電話番号または携帯電話番号の両方またはどちらかを記録しなければならない。
+///
+/// # 認証
+///
 /// ユーザーは、Eメール・アドレスとパスワードで認証する。
 /// アクティブ・フラグが`true`のユーザーのみ認証できる。
 /// アプリケーション設定の大認証繰り返し時間内に、最大認証繰り返し回数より多く認証に失敗したとき、
 /// 認証に失敗させて、次回以降の認証をすべて拒否する。
+///
+/// # ユーザーの登録
+///
 /// ユーザーを登録するとき、PostgresSQLの場合、作成日時と更新日時に`STATEMENT_TIMESTAMP()`を使用して、
 /// 同じ日時が記録されるようにする。
 #[derive(Debug, Clone, Getter)]
@@ -111,10 +119,19 @@ impl User {
     }
 }
 
+/// Eメール・アドレスの長さ
+///
+/// Eメール・アドレスの文字数の最小値は規定されていないため、"a@a.jp"のようなアドレスを想定して6文字とした。
+/// Eメール・アドレスの文字数の最大値は、次を参照して設定した。
+/// <https://stackoverflow.com/questions/386294/what-is-the-maximum-length-of-a-valid-email-address>
+const EMAIL_ADDRESS_MIN_LEN: u64 = 6;
+const EMAIL_ADDRESS_MAX_LEN: u64 = 254;
+
 /// Eメール・アドレス
 #[derive(Debug, Clone, Validate, DomainPrimitive, PrimitiveDisplay, StringPrimitive)]
 pub struct EmailAddress {
     #[validate(email)]
+    #[validate(length(min = EMAIL_ADDRESS_MIN_LEN, max = EMAIL_ADDRESS_MAX_LEN))]
     #[value_getter(ret = "ref", rty = "&str")]
     value: String,
 }
@@ -200,6 +217,7 @@ mod tests {
     use crate::common::DomainError;
     use crate::models::passwords::tests::VALID_RAW_PASSWORD;
     use crate::models::passwords::{generate_phc_string, PasswordPepper, RawPassword};
+    use crate::models::user::EMAIL_ADDRESS_MAX_LEN;
 
     /// ユーザーを構築できることを確認
     #[test]
@@ -279,21 +297,35 @@ mod tests {
 
     /// Eメール・アドレスとして妥当な文字列から、Eメール・アドレスを構築できることを確認
     #[test]
-    fn construct_email_address_from_valid_string() {
-        let expected = "foo@example.com";
-        let instance = EmailAddress::new(expected).unwrap();
-        assert_eq!(expected, instance.value());
+    fn construct_email_address_from_valid_strings() {
+        let candidates = ["a@a.jp", "foo@example.com"];
+        for candidate in candidates {
+            let instance = EmailAddress::new(candidate).unwrap();
+            assert_eq!(candidate, instance.value());
+        }
     }
 
     /// Eメール・アドレスとして無効な文字列から、Eメールアドレスを構築できないことを確認
     #[test]
-    fn can_not_construct_email_address_from_invalid_string() {
-        match EmailAddress::new("invalid-email-address") {
-            Ok(_) => panic!("EmailAddress must not be constructed from invalid string"),
+    fn can_not_construct_email_address_from_invalid_strings() {
+        let domain = "@example.com";
+        let length_of_user_name = EMAIL_ADDRESS_MAX_LEN as usize + 1 - domain.len();
+        let mut invalid_email_address = "a".repeat(length_of_user_name);
+        invalid_email_address.push_str(domain);
+        assert_eq!(
+            EMAIL_ADDRESS_MAX_LEN + 1,
+            invalid_email_address.len() as u64
+        );
+
+        let candidates = ["", "a", "a@a.a", "aaaaaa", invalid_email_address.as_str()];
+        for candidate in candidates {
+            match EmailAddress::new(candidate) {
+            Ok(_) => panic!("EmailAddress must not be constructed from invalid string: {}", candidate),
             Err(err) => match err {
                 DomainError::DomainRule(_) => {},
-                _ =>panic!("DomainError::DomainRule should be raised when constructing from invalid string")
+                _ =>panic!("DomainError::DomainRule should be raised when constructing from invalid string: {}", candidate)
             }
+        }
         }
     }
 
