@@ -1,0 +1,11 @@
+[package]
+name = "actix-web-example-test-suite"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[dev-dependencies]
+anyhow = "1.0.81"
+reqwest = "0.12.2"
+server = { path = "../server" }
+tokio = { version = "1.36.0", features = ["rt-multi-thread", "macros"] }

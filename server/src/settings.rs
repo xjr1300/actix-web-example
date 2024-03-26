@@ -3,6 +3,9 @@ use std::path::Path;
 use config::{self, Config, FileFormat, FileSourceFile};
 use enum_display::EnumDisplay;
 
+/// 設定ファイル・ディレクトリ・パス
+pub const SETTINGS_DIR_NAME: &str = "settings";
+
 /// アプリの動作環境
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EnumDisplay)]
 #[enum_display(case = "Lower")]
@@ -101,10 +104,10 @@ fn config_file_source(
 }
 
 #[cfg(test)]
-mod tests {
+pub mod tests {
     use std::path::Path;
 
-    use super::{retrieve_app_settings, AppEnvironment};
+    use crate::settings::{retrieve_app_settings, AppEnvironment, SETTINGS_DIR_NAME};
 
     /// 文字列からアプリの動作環境を正しく判定できることを確認
     #[test]
@@ -123,15 +126,11 @@ mod tests {
         }
     }
 
-    /// テスト用設定ファイル・ディレクトリ・パス
-    //const TEST_SETTINGS_DIR: &str = "resources/tests/settings";
-    const TEST_SETTINGS_DIR: &str = "settings";
-
     /// 開発環境のアプリケーション設定を正しくロードできることを確認
     #[test]
     fn can_retrieve_app_settings_for_development() -> anyhow::Result<()> {
         let dir = Path::new(env!("CARGO_MANIFEST_DIR"));
-        let settings_dir = dir.join("..").join(TEST_SETTINGS_DIR);
+        let settings_dir = dir.join("..").join(SETTINGS_DIR_NAME);
         let app_settings = retrieve_app_settings(AppEnvironment::Development, settings_dir)?;
         assert_eq!(8000, app_settings.http_server.port);
         assert_eq!(log::Level::Debug, app_settings.logging.level);
@@ -143,7 +142,7 @@ mod tests {
     #[test]
     fn can_retrieve_app_settings_for_production() -> anyhow::Result<()> {
         let dir = Path::new(env!("CARGO_MANIFEST_DIR"));
-        let settings_dir = dir.join("..").join(TEST_SETTINGS_DIR);
+        let settings_dir = dir.join("..").join(SETTINGS_DIR_NAME);
         let app_settings = retrieve_app_settings(AppEnvironment::Production, settings_dir)?;
         assert_eq!(443, app_settings.http_server.port);
         assert_eq!(log::Level::Info, app_settings.logging.level);
