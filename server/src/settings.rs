@@ -96,6 +96,16 @@ pub fn retrieve_app_settings<P: AsRef<Path>>(
         .map_err(|e| e.into())
 }
 
+/// `Config`がロードする設定ファイルのパスを構築する。
+///
+/// # 引数
+///
+/// * `settings_dir` - 設定ファイル・ディレクトリ・パス
+/// * `file_name` - 設定ファイルの名前
+///
+/// # 戻り値
+///
+/// 設定ファイルのパス
 fn config_file_source(
     settings_dir: &Path,
     file_name: &str,
