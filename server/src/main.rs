@@ -10,7 +10,7 @@ use server::telemetry::{generate_log_subscriber, init_log_subscriber};
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     // 環境変数を設定
-    dotenvx::dotenv().ok();
+    dotenvx::dotenv()?;
 
     // 環境変数からアプリケーションの動作環境を取得
     let app_env: AppEnvironment = std::env::var("APP_ENVIRONMENT")
@@ -19,6 +19,7 @@ async fn main() -> anyhow::Result<()> {
     // アプリケーション設定を取得
     let settings_dir = Path::new(SETTINGS_DIR_NAME);
     let app_settings = retrieve_app_settings(app_env, settings_dir)?;
+    println!("AppSettings: {:?}", app_settings);
 
     // サブスクライバを初期化
     let subscriber = generate_log_subscriber(

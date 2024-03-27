@@ -17,3 +17,8 @@ tracing-actix-web = "0.7.10"
 tracing-bunyan-formatter = "0.3"
 tracing-log = "0.2.0"
 tracing-subscriber = { version = "0.3", features = ["registry", "env-filter"] }
+
+[dependencies.sqlx]
+version = "0.7.4"
+default-features = false
+features = ["runtime-tokio-rustls", "macros", "postgres", "uuid", "time"]

@@ -4,11 +4,11 @@ services:
     build:
       context: .
       dockerfile: ./docker/postgres/Dockerfile
-    container_name: "${POSTGRES_CONTAINER_NAME}"
-    command: -c "max_connections=${POSTGRES_MAX_CONNECTIONS}"
+    container_name: "${POSTGRES_CONTAINER}"
+    command: -c "max_connections=1000"
     ports:
-      - "${POSTGRES_PORT}:5432"
+      - 5432:5432
     environment:
-      POSTGRES_USER: "${POSTGRES_USER_NAME}"
-      POSTGRES_PASSWORD: "${POSTGRES_USER_PASSWORD}"
-      POSTGRES_DB: "${POSTGRES_DATABASE_NAME}"
+      POSTGRES_USER: "${POSTGRES_DATABASE__USER}"
+      POSTGRES_PASSWORD: "${POSTGRES_DATABASE__PASSWORD}"
+      POSTGRES_DB: "${POSTGRES_DATABASE__NAME}"
