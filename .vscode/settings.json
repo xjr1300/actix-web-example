@@ -1,4 +1,10 @@
 {
   "rust-analyzer.showUnlinkedFileNotification": false,
-  "cSpell.words": ["dotenvx", "Hasher", "Hmac", "idents"]
+  "cSpell.words": [
+    "dotenvx",
+    "Hasher",
+    "Hmac",
+    "idents",
+    "reqwest"
+  ]
 }

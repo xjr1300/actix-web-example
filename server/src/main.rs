@@ -1,9 +1,10 @@
+use std::net::TcpListener;
 use std::path::Path;
 
-use actix_web::{web, App, HttpResponse, HttpServer, Responder};
-use tracing_actix_web::TracingLogger;
+use anyhow::anyhow;
 
-use server::settings::{retrieve_app_settings, AppEnvironment};
+use server::settings::{retrieve_app_settings, AppEnvironment, SETTINGS_DIR_NAME};
+use server::startup::build_http_server;
 use server::telemetry::{generate_log_subscriber, init_log_subscriber};
 
 #[tokio::main]
@@ -16,27 +17,21 @@ async fn main() -> anyhow::Result<()> {
         .unwrap_or_else(|_| String::from("development"))
         .into();
     // アプリケーション設定を取得
-    let app_settings = retrieve_app_settings(app_env, Path::new("settings"))?;
+    let settings_dir = Path::new(SETTINGS_DIR_NAME);
+    let app_settings = retrieve_app_settings(app_env, settings_dir)?;
 
     // サブスクライバを初期化
-    let subscriber =
-        generate_log_subscriber("actix_web_example".into(), app_settings.logging.level);
+    let subscriber = generate_log_subscriber(
+        "actix_web_example".into(),
+        app_settings.logging.level,
+        std::io::stdout,
+    );
     init_log_subscriber(subscriber);
 
-    // HttpServerを起動
-    HttpServer::new(|| {
-        App::new()
-            .wrap(TracingLogger::default())
-            .route("/", web::get().to(health_check))
-    })
-    .bind(("127.0.0.1", app_settings.http_server.port))?
-    .run()
-    .await
-    .map_err(|e| e.into())
-}
+    // Httpサーバーがリッスンするポートをバインド
+    let address = format!("localhost:{}", app_settings.http_server.port);
+    let listener = TcpListener::bind(address).map_err(|e| anyhow!(e))?;
 
-/// ヘルス・チェック
-#[tracing::instrument(name = "health check")]
-pub async fn health_check() -> impl Responder {
-    HttpResponse::Ok().body("It works!")
+    // HTTPサーバーを起動
+    build_http_server(listener)?.await.map_err(|e| e.into())
 }

@@ -5,7 +5,7 @@
 ### 環境変数
 
 * 環境変数`APP_ENVIRONMENT`からアプリケーションの動作環境を取得
-* 環境変数`APP_ENVIRONMENT`には、`development`、`production`を設定できそれぞれ開発環境と運用環境を表現
+  * 環境変数`APP_ENVIRONMENT`には、`development`、`production`を設定できそれぞれ開発環境と運用環境を表現
 
 ### アプリケーション設定
 
@@ -21,3 +21,36 @@
   * `tracing-bunyan-formatter`: Bunyanフォーマットでログを整形するフォーマッタ
   * `tracing-log`: `log`クレートが提供するロギング・ファサードと一緒に`tracing`を使用するための互換レイヤを提供
   * `tracing-subscriber`: `tracing`の購読者を実装または構成するユーティリティ
+
+## テスト
+
+次の通り、単体テストを実行する。
+
+```sh
+cargo test
+```
+
+次の通り、統合テストを実行する。
+
+```sh
+# ログ出力なし
+cargo test -- --ignored
+# ログ出力あり
+TEST_LOG=true cargo test -- --ignored | bunyan  # cargo install bunyan
+TEST_LOG=true cargo test -- --ignored | jq  # apt -y install jq
+```
+
+統合テストは、`test_suite`クレートに実装して、統合テストを実行する関数に次の通り属性をつける。
+
+```rust
+#[tokio::test]
+#[ignore]
+async fn test_async() {
+    // 非同期テスト・コード
+}
+
+#[ignore]
+fn test_sync() {
+    // 同期テスト・コード
+}
+```
