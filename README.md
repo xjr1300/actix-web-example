@@ -20,7 +20,6 @@
 * `POSTGRES_DATABASE__PASSWORD`: 上記ユーザーのパスワード
 * `POSTGRES_DATABASE__PORT`: PostgreSQLコンテナに接続するホスト側のポートの番号
 * `POSTGRES_DATABASE__HOST`: PostgreSQLコンテナに接続するホストの名前
-* `POSTGRES_DATABASE__NAME`: PostgreSQLのデータベース名
 * `DATABASE_URL`: PostgreSQLの接続URL
 
 ### 設定ファイル
@@ -31,6 +30,9 @@
 
 * `http_server`: Httpサーバー設定
   * `port`: HTTPサーバーがリッスンするポートの番号
+* `database`: データベース設定
+  * `require_ssl`: SSL接続を要求するかどうか(`true`, `false`)
+  * `log_statements`: ログに記録するSQLステートメントの最小レベル(`debug`, `info`, `warn`, `error`)
 * `logging`: ロギング設定
   * `level`: ロギング・レベル（`trace`, `debug`, `info`, `warn`, `error`）
 

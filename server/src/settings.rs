@@ -2,6 +2,10 @@ use std::path::Path;
 
 use config::{self, Config, FileFormat, FileSourceFile};
 use enum_display::EnumDisplay;
+use log::LevelFilter;
+use secrecy::{ExposeSecret, SecretString};
+use sqlx::postgres::{PgConnectOptions, PgPoolOptions, PgSslMode};
+use sqlx::{ConnectOptions as _, PgPool};
 
 /// 設定ファイル・ディレクトリ・パス
 pub const SETTINGS_DIR_NAME: &str = "settings";
@@ -64,13 +68,19 @@ pub struct DatabaseSettings {
     /// ユーザー名
     pub user: String,
     /// パスワード
-    pub password: String,
+    pub password: SecretString,
     /// ポート番号
     pub port: u16,
     /// ホスト
     pub host: String,
     /// データベース名
     pub name: String,
+    /// SSL接続要求
+    pub require_ssl: bool,
+    /// 接続タイムアウト秒
+    pub connection_timeout_seconds: u64,
+    /// ログに記録するSQLステートメントの最小レベル
+    pub log_statements: LevelFilter,
 }
 
 /// ロギング設定
@@ -78,6 +88,49 @@ pub struct DatabaseSettings {
 pub struct LoggingSettings {
     /// ログ・レベル
     pub level: log::Level,
+}
+
+impl DatabaseSettings {
+    /// データベースを指定しない接続オプションを取得する。
+    ///
+    /// # 戻り値
+    ///
+    /// データベース接続オプション
+    pub fn without_db(&self) -> PgConnectOptions {
+        let ssl_mode = match self.require_ssl {
+            true => PgSslMode::Require,
+            false => PgSslMode::Prefer,
+        };
+        PgConnectOptions::new()
+            .username(&self.user)
+            .password(self.password.expose_secret())
+            .port(self.port)
+            .host(&self.host)
+            .ssl_mode(ssl_mode)
+    }
+
+    /// データベース接続オプションを取得する。
+    ///
+    /// # 戻り値
+    ///
+    /// データベース接続オプション
+    pub fn with_db(&self) -> PgConnectOptions {
+        let options = self.without_db().database(&self.name);
+        options.log_statements(self.log_statements)
+    }
+
+    /// データベース接続プールを取得する。
+    ///
+    /// # 戻り値
+    ///
+    /// データベース接続プール
+    pub fn connection_pool(&self) -> PgPool {
+        PgPoolOptions::new()
+            .acquire_timeout(std::time::Duration::from_secs(
+                self.connection_timeout_seconds,
+            ))
+            .connect_lazy_with(self.with_db())
+    }
 }
 
 /// アプリケーション設定を取得する。
@@ -140,6 +193,9 @@ fn config_file_source(
 pub mod tests {
     use std::path::Path;
 
+    use log::LevelFilter;
+    use secrecy::ExposeSecret;
+
     use crate::settings::{
         retrieve_app_settings, AppEnvironment, DatabaseSettings, SETTINGS_DIR_NAME,
     };
@@ -167,11 +223,13 @@ pub mod tests {
     #[test]
     fn can_retrieve_app_settings_for_development() -> anyhow::Result<()> {
         dotenvx::dotenv()?;
-        let dir = Path::new(env!("CARGO_MANIFEST_DIR"));
-        let settings_dir = dir.join("..").join(SETTINGS_DIR_NAME);
+        let crate_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
+        let settings_dir = crate_dir.join("..").join(SETTINGS_DIR_NAME);
         let app_settings = retrieve_app_settings(AppEnvironment::Development, settings_dir)?;
         assert_eq!(8000, app_settings.http_server.port);
         validate_database_settings(&app_settings.database);
+        assert!(!app_settings.database.require_ssl); // SSL接続を要求しない
+        assert_eq!(LevelFilter::Trace, app_settings.database.log_statements);
         assert_eq!(log::Level::Debug, app_settings.logging.level);
 
         Ok(())
@@ -188,16 +246,20 @@ pub mod tests {
         let app_settings = retrieve_app_settings(AppEnvironment::Production, settings_dir)?;
         assert_eq!(443, app_settings.http_server.port);
         validate_database_settings(&app_settings.database);
+        assert!(app_settings.database.require_ssl); // SSL接続を要求
+        assert_eq!(LevelFilter::Error, app_settings.database.log_statements);
         assert_eq!(log::Level::Info, app_settings.logging.level);
 
         Ok(())
     }
 
+    /// データベース設定を正しくロードできていることを確認
     fn validate_database_settings(settings: &DatabaseSettings) {
-        assert_eq!("admin", settings.user);
-        assert_eq!("p@ssw0rd", settings.password);
+        assert_eq!("awe", settings.user);
+        assert_eq!("awe-pass", settings.password.expose_secret());
         assert_eq!(5432, settings.port);
         assert_eq!("localhost", settings.host);
         assert_eq!("awe", settings.name);
+        assert_eq!(3, settings.connection_timeout_seconds);
     }
 }

@@ -45,9 +45,9 @@ until psql -h "${DB_HOST}" -U "${DB_USER}" -p "${DB_PORT}" -d "postgres" -c '\q'
     sleep 1
 done
 
-# # データベースを作成
-# sqlx database create
-#
+# データベースを作成
+sqlx database create
+
 # # マイグレーションを実行
 # if [ -d "./migrations" ]; then
 #     sqlx migrate run
