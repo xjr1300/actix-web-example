@@ -20,7 +20,6 @@ async fn main() -> anyhow::Result<()> {
     // アプリケーション設定を取得
     let settings_dir = Path::new(SETTINGS_DIR_NAME);
     let app_settings = retrieve_app_settings(app_env, settings_dir)?;
-    println!("{:?}", app_settings);
 
     // サブスクライバを初期化
     let subscriber = generate_log_subscriber(
