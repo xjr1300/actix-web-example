@@ -21,8 +21,11 @@ async fn main() -> anyhow::Result<()> {
     let app_settings = retrieve_app_settings(app_env, settings_dir)?;
 
     // サブスクライバを初期化
-    let subscriber =
-        generate_log_subscriber("actix_web_example".into(), app_settings.logging.level);
+    let subscriber = generate_log_subscriber(
+        "actix_web_example".into(),
+        app_settings.logging.level,
+        std::io::stdout,
+    );
     init_log_subscriber(subscriber);
 
     // Httpサーバーがリッスンするポートをバインド
