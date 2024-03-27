@@ -5,6 +5,7 @@ services:
       context: .
       dockerfile: ./docker/postgres/Dockerfile
     container_name: "${POSTGRES_CONTAINER_NAME}"
+    command: -c "max_connections=${POSTGRES_MAX_CONNECTIONS}"
     ports:
       - "${POSTGRES_PORT}:5432"
     environment:
