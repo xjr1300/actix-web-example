@@ -2149,6 +2149,7 @@ dependencies = [
  "dotenvx",
  "enum-display",
  "log",
+ "secrecy",
  "serde",
  "sqlx",
  "tokio",
@@ -2564,11 +2565,14 @@ name = "test_suite"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "dotenvx",
  "log",
  "once_cell",
  "reqwest",
  "server",
+ "sqlx",
  "tokio",
+ "uuid",
 ]
 
 [[package]]
