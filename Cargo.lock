@@ -182,18 +182,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "actix-web-example-test-suite"
-version = "0.0.0"
-dependencies = [
- "anyhow",
- "log",
- "once_cell",
- "reqwest",
- "server",
- "tokio",
-]
-
-[[package]]
 name = "addr2line"
 version = "0.21.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1917,6 +1905,18 @@ dependencies = [
  "fastrand",
  "rustix",
  "windows-sys 0.52.0",
+]
+
+[[package]]
+name = "test_suite"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "log",
+ "once_cell",
+ "reqwest",
+ "server",
+ "tokio",
 ]
 
 [[package]]
