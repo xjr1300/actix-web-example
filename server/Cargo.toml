@@ -10,6 +10,7 @@ config = "0.14.0"
 dotenvx = "0.0.2"
 enum-display = "0.1.4"
 log = { version = "0.4.21", features = ["serde"] }
+routes = { path = "../routes" }
 secrecy = { version = "0.8.0", features = ["alloc", "serde"] }
 serde = { version = "1.0.197", features = ["derive"] }
 tokio = { version = "1.36.0", features = ["rt-multi-thread", "macros"] }

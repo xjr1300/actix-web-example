@@ -1,7 +1,8 @@
 use std::net::TcpListener;
 
 use actix_web::dev::Server;
-use actix_web::{web, App, HttpResponse, HttpServer, Responder};
+use actix_web::{web, App, HttpServer};
+use routes::health_check;
 use sqlx::PgPool;
 use tracing_actix_web::TracingLogger;
 
@@ -25,10 +26,4 @@ pub fn build_http_server(listener: TcpListener, pool: PgPool) -> anyhow::Result<
     })
     .listen(listener)?
     .run())
-}
-
-/// ヘルス・チェック
-#[tracing::instrument(name = "health check")]
-pub async fn health_check() -> impl Responder {
-    HttpResponse::Ok().body("It works!")
 }
