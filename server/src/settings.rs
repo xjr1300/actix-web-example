@@ -45,6 +45,8 @@ impl From<String> for AppEnvironment {
 pub struct AppSettings {
     /// HTTPサーバー設定
     pub http_server: HttpServerSettings,
+    /// データベース設定
+    pub database: DatabaseSettings,
     /// ロギング設定
     pub logging: LoggingSettings,
 }
@@ -54,6 +56,21 @@ pub struct AppSettings {
 pub struct HttpServerSettings {
     /// リスニング・ポート番号
     pub port: u16,
+}
+
+/// データベース設定
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct DatabaseSettings {
+    /// ユーザー名
+    pub user: String,
+    /// パスワード
+    pub password: String,
+    /// ポート番号
+    pub port: u16,
+    /// ホスト
+    pub host: String,
+    /// データベース名
+    pub name: String,
 }
 
 /// ロギング設定
@@ -88,6 +105,12 @@ pub fn retrieve_app_settings<P: AsRef<Path>>(
         .add_source(default_settings_file)
         // 環境別の設定ファイルをロード
         .add_source(env_settings_file)
+        // 環境変数に記録された設定をロード
+        .add_source(
+            config::Environment::with_prefix("POSTGRES")
+                .prefix_separator("_")
+                .separator("__"),
+        )
         .build()?;
 
     // アプリケーション設定を読み込み
@@ -117,7 +140,9 @@ fn config_file_source(
 pub mod tests {
     use std::path::Path;
 
-    use crate::settings::{retrieve_app_settings, AppEnvironment, SETTINGS_DIR_NAME};
+    use crate::settings::{
+        retrieve_app_settings, AppEnvironment, DatabaseSettings, SETTINGS_DIR_NAME,
+    };
 
     /// 文字列からアプリの動作環境を正しく判定できることを確認
     #[test]
@@ -137,26 +162,42 @@ pub mod tests {
     }
 
     /// 開発環境のアプリケーション設定を正しくロードできることを確認
+    ///
+    /// ワークスペース・ディレクトリ内の`.env`ファイルが存在することを想定している。
     #[test]
     fn can_retrieve_app_settings_for_development() -> anyhow::Result<()> {
+        dotenvx::dotenv()?;
         let dir = Path::new(env!("CARGO_MANIFEST_DIR"));
         let settings_dir = dir.join("..").join(SETTINGS_DIR_NAME);
         let app_settings = retrieve_app_settings(AppEnvironment::Development, settings_dir)?;
         assert_eq!(8000, app_settings.http_server.port);
+        validate_database_settings(&app_settings.database);
         assert_eq!(log::Level::Debug, app_settings.logging.level);
 
         Ok(())
     }
 
     /// 運用環境のアプリケーション設定を正しくロードできることを確認
+    ///
+    /// ワークスペース・ディレクトリ内の`.env`ファイルが存在することを想定している。
     #[test]
     fn can_retrieve_app_settings_for_production() -> anyhow::Result<()> {
+        dotenvx::dotenv()?;
         let dir = Path::new(env!("CARGO_MANIFEST_DIR"));
         let settings_dir = dir.join("..").join(SETTINGS_DIR_NAME);
         let app_settings = retrieve_app_settings(AppEnvironment::Production, settings_dir)?;
         assert_eq!(443, app_settings.http_server.port);
+        validate_database_settings(&app_settings.database);
         assert_eq!(log::Level::Info, app_settings.logging.level);
 
         Ok(())
+    }
+
+    fn validate_database_settings(settings: &DatabaseSettings) {
+        assert_eq!("admin", settings.user);
+        assert_eq!("p@ssw0rd", settings.password);
+        assert_eq!(5432, settings.port);
+        assert_eq!("localhost", settings.host);
+        assert_eq!("awe", settings.name);
     }
 }

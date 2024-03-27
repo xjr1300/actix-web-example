@@ -34,6 +34,8 @@ pub struct TestApp {
 pub async fn spawn_app_for_integration_test() -> anyhow::Result<TestApp> {
     Lazy::force(&TRACING);
 
+    // 統合テストが終了すると、HTTPサーバーがリッスンするポートが閉じられる。
+    // すると、actix-webが提供する`Server`が終了して、ここで生み出したスレッドが終了する。
     let listener = TcpListener::bind("localhost:0").context("failed to bind random port")?;
     let port = listener.local_addr().unwrap().port();
     let server = build_http_server(listener)?;
