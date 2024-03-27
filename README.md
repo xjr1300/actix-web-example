@@ -9,19 +9,32 @@
 * 環境変数`APP_ENVIRONMENT`からアプリケーションの動作環境を取得
   * 環境変数`APP_ENVIRONMENT`には、`development`、`production`を設定できそれぞれ開発環境と運用環境を表現
 
-* `APP_ENVIRONMENT`: アプリケーションの動作環境を`development`または`production`で指定
-* `POSTGRES_CONTAINER_NAME`: PostgreSQLのコンテナ名
-* `POSTGRES_USER_NAME`: PostgreSQLのスパー・ユーザー名
-* `POSTGRES_USER_PASSWORD`: 上記ユーザーのパスワード
-* `POSTGRES_DATABASE_NAME`: 本アプリが使用するデータベースの名前
-* `POSTGRES_PORT`: PostgreSQLコンテナにアクセスするときに使用するホスト側のポートの番号
-* `POSTGRES_HOST`: PostgreSQLコンテナのホスト
+#### アプリケーション設定
 
-### アプリケーション設定
+* `APP_ENVIRONMENT`: アプリケーションの動作環境を`development`または`production`で指定
+
+#### データベース設定
+
+* `POSTGRES_CONTAINER`: PostgreSQLのコンテナ名
+* `POSTGRES_DATABASE__USER`: PostgreSQLのスーパー・ユーザーの名前
+* `POSTGRES_DATABASE__PASSWORD`: 上記ユーザーのパスワード
+* `POSTGRES_DATABASE__PORT`: PostgreSQLコンテナに接続するホスト側のポートの番号
+* `POSTGRES_DATABASE__HOST`: PostgreSQLコンテナに接続するホストの名前
+* `DATABASE_URL`: PostgreSQLの接続URL
+
+### 設定ファイル
 
 * `settings`ディレクトリの`default.yml`からアプリケーションの設定を読み込む
 * 次に、アプリケーションの動作環境が開発環境であれば`settings`ディレクトリの`development.yml`を、
   運用環境であれば`production.yml`を読み込み、`default.yml`に定義された設定を上書き
+
+* `http_server`: Httpサーバー設定
+  * `port`: HTTPサーバーがリッスンするポートの番号
+* `database`: データベース設定
+  * `require_ssl`: SSL接続を要求するかどうか(`true`, `false`)
+  * `log_statements`: ログに記録するSQLステートメントの最小レベル(`debug`, `info`, `warn`, `error`)
+* `logging`: ロギング設定
+  * `level`: ロギング・レベル（`trace`, `debug`, `info`, `warn`, `error`）
 
 ## ログの記録
 
@@ -42,11 +55,18 @@
 
 ## テスト
 
+### 単体テスト
+
+* ワークスペース・ディレクトリの`.env`ファイルが必要な場合はバックアップ
+* ワークスペース・ディレクトリの`.env.test`ファイルを、`.env`ファイルに名前を変更
+
 次の通り、単体テストを実行する。
 
 ```sh
 cargo test
 ```
+
+#### 統合テスト
 
 次の通り、統合テストを実行する。
 

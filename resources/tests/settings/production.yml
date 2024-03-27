@@ -1,4 +1,7 @@
 http_server:
   port: 443
+database:
+  require_ssl: true
+  log_statements: error
 logging:
   level: info

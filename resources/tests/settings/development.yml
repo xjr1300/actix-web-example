@@ -1,4 +1,7 @@
 http_server:
   port: 8000
+database:
+  require_ssl: false
+  log_statements: trace
 logging:
   level: debug
