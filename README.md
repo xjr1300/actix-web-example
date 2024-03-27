@@ -4,8 +4,18 @@
 
 ### 環境変数
 
+* 環境変数は、`.env`ファイルで設定
+* `.env`ファイルは、リポジトリに存在しないため作成
 * 環境変数`APP_ENVIRONMENT`からアプリケーションの動作環境を取得
   * 環境変数`APP_ENVIRONMENT`には、`development`、`production`を設定できそれぞれ開発環境と運用環境を表現
+
+* `APP_ENVIRONMENT`: アプリケーションの動作環境を`development`または`production`で指定
+* `POSTGRES_CONTAINER_NAME`: PostgreSQLのコンテナ名
+* `POSTGRES_USER_NAME`: PostgreSQLのスパー・ユーザー名
+* `POSTGRES_USER_PASSWORD`: 上記ユーザーのパスワード
+* `POSTGRES_DATABASE_NAME`: 本アプリが使用するデータベースの名前
+* `POSTGRES_PORT`: PostgreSQLコンテナにアクセスするときに使用するホスト側のポートの番号
+* `POSTGRES_HOST`: PostgreSQLコンテナのホスト
 
 ### アプリケーション設定
 
@@ -21,6 +31,14 @@
   * `tracing-bunyan-formatter`: Bunyanフォーマットでログを整形するフォーマッタ
   * `tracing-log`: `log`クレートが提供するロギング・ファサードと一緒に`tracing`を使用するための互換レイヤを提供
   * `tracing-subscriber`: `tracing`の購読者を実装または構成するユーティリティ
+
+## コンテナの起動
+
+次の通り、コンテナを起動する。
+
+```sh
+./scripts/run_containers.sh
+```
 
 ## テスト
 
