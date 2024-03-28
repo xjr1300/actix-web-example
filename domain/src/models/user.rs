@@ -1,13 +1,12 @@
-use once_cell::sync::Lazy;
-use regex::Regex;
 use time::OffsetDateTime;
-use validator::Validate;
 
-use macros::{DomainPrimitive, Getter, PrimitiveDisplay, StringPrimitive};
+use macros::{Builder, Getter};
 
-use crate::common::{DomainError, DomainResult};
+use crate::common::{now_jst, DomainError, DomainResult};
 use crate::models::passwords::PhcPassword;
-use crate::models::EntityId;
+use crate::models::primitives::*;
+
+use super::primitives::{EmailAddress, FamilyName};
 
 /// ユーザーID
 pub type UserId = EntityId<User>;
@@ -29,7 +28,8 @@ pub type UserId = EntityId<User>;
 ///
 /// ユーザーを登録するとき、PostgresSQLの場合、作成日時と更新日時に`STATEMENT_TIMESTAMP()`を使用して、
 /// 同じ日時が記録されるようにする。
-#[derive(Debug, Clone, Getter)]
+#[derive(Debug, Clone, Getter, Builder)]
+#[builder_validation(func = "validate_user")]
 pub struct User {
     /// ユーザーID
     #[getter(ret = "val")]
@@ -43,10 +43,10 @@ pub struct User {
     /// アクティブ・フラグ
     #[getter(ret = "val")]
     active: bool,
-    /// 氏名の苗字
+    /// 苗字
     #[getter(ret = "ref")]
     family_name: FamilyName,
-    /// 氏名の名前
+    /// 名前
     #[getter(ret = "ref")]
     given_name: GivenName,
     /// 郵便番号
@@ -64,12 +64,25 @@ pub struct User {
     /// 備考
     #[getter(ret = "ref")]
     remarks: Option<Remarks>,
+    /// 最終ログイン日時
+    #[getter(ret = "val")]
+    last_logged_in_at: Option<OffsetDateTime>,
     /// 作成日時
     #[getter(ret = "val")]
     created_at: OffsetDateTime,
     /// 更新日時
     #[getter(ret = "val")]
     updated_at: OffsetDateTime,
+}
+
+fn validate_user(user: &User) -> DomainResult<()> {
+    if user.fixed_phone_number.is_none() && user.mobile_phone_number.is_none() {
+        return Err(DomainError::DomainRule(
+            "must provide at least a fixed phone number or mobile phone number".into(),
+        ));
+    }
+
+    Ok(())
 }
 
 impl User {
@@ -97,9 +110,7 @@ impl User {
             ));
         }
         // 現在の日時を取得
-        // FIXME: ローカルな日時を設定したいが、`OffsetDateTime::now_local()`が動作しない。
-        // よって、`time`クレートのfeaturesに`local-offset`を設定していない。
-        let dt = OffsetDateTime::now_utc();
+        let dt = now_jst();
 
         Ok(Self {
             id,
@@ -113,111 +124,21 @@ impl User {
             fixed_phone_number,
             mobile_phone_number,
             remarks,
+            last_logged_in_at: None,
             created_at: dt,
             updated_at: dt,
         })
     }
 }
 
-/// Eメール・アドレスの長さ
-///
-/// Eメール・アドレスの文字数の最小値は規定されていないため、"a@a.jp"のようなアドレスを想定して6文字とした。
-/// Eメール・アドレスの文字数の最大値は、次を参照して設定した。
-/// <https://stackoverflow.com/questions/386294/what-is-the-maximum-length-of-a-valid-email-address>
-const EMAIL_ADDRESS_MIN_LEN: u64 = 6;
-const EMAIL_ADDRESS_MAX_LEN: u64 = 254;
-
-/// Eメール・アドレス
-#[derive(Debug, Clone, Validate, DomainPrimitive, PrimitiveDisplay, StringPrimitive)]
-pub struct EmailAddress {
-    #[validate(email)]
-    #[validate(length(min = EMAIL_ADDRESS_MIN_LEN, max = EMAIL_ADDRESS_MAX_LEN))]
-    #[value_getter(ret = "ref", rty = "&str")]
-    value: String,
-}
-
-/// ユーザーの氏名の苗字
-#[derive(Debug, Clone, Validate, DomainPrimitive, PrimitiveDisplay, StringPrimitive)]
-pub struct FamilyName {
-    #[validate(length(min = 1, max = 40))]
-    #[value_getter(ret = "ref", rty = "&str")]
-    value: String,
-}
-
-/// ユーザーの氏名の名前
-#[derive(Debug, Clone, Validate, DomainPrimitive, PrimitiveDisplay, StringPrimitive)]
-pub struct GivenName {
-    #[validate(length(min = 1, max = 40))]
-    #[value_getter(ret = "ref", rty = "&str")]
-    value: String,
-}
-
-/// 郵便番号の正規表現
-static POSTAL_CODE_EXPRESSION: Lazy<Regex> =
-    Lazy::new(|| Regex::new(r"^[0-9]{3}-[0-9]{4}$").unwrap());
-
-/// 郵便番号
-#[derive(Debug, Clone, Validate, DomainPrimitive, PrimitiveDisplay, StringPrimitive)]
-pub struct PostalCode {
-    #[validate(regex(path = "*POSTAL_CODE_EXPRESSION"))]
-    #[value_getter(ret = "ref", rty = "&str")]
-    value: String,
-}
-
-/// 住所
-#[derive(Debug, Clone, Validate, DomainPrimitive, PrimitiveDisplay, StringPrimitive)]
-pub struct Address {
-    #[validate(length(min = 1, max = 80))]
-    #[value_getter(ret = "ref", rty = "&str")]
-    value: String,
-}
-
-/// 固定電話番号の正規表現
-static FIXED_PHONE_NUMBER_EXPRESSION: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r"^0([0-9]-[0-9]{4}|[0-9]{2}-[0-9]{3}|[0-9]{3}-[0-9]{2}|[0-9]{4}-[0-9])-[0-9]{4}$")
-        .unwrap()
-});
-
-/// 固定電話番号
-#[derive(Debug, Clone, Validate, DomainPrimitive, PrimitiveDisplay, StringPrimitive)]
-pub struct FixedPhoneNumber {
-    #[validate(regex(path = "*FIXED_PHONE_NUMBER_EXPRESSION"))]
-    #[value_getter(ret = "ref", rty = "&str")]
-    value: String,
-}
-
-/// 携帯電話番号の正規表現
-static MOBILE_PHONE_NUMBER_EXPRESSION: Lazy<Regex> =
-    Lazy::new(|| Regex::new(r"^0[789]0-[0-9]{4}-[0-9]{4}$").unwrap());
-
-/// 携帯電話番号
-#[derive(Debug, Clone, Validate, DomainPrimitive, PrimitiveDisplay, StringPrimitive)]
-pub struct MobilePhoneNumber {
-    #[validate(regex(path = "*MOBILE_PHONE_NUMBER_EXPRESSION"))]
-    #[value_getter(ret = "ref", rty = "&str")]
-    value: String,
-}
-
-/// 備考
-#[derive(Debug, Clone, Validate, DomainPrimitive, PrimitiveDisplay, StringPrimitive)]
-pub struct Remarks {
-    #[validate(length(min = 1, max = 400))]
-    #[value_getter(ret = "ref", rty = "&str")]
-    value: String,
-}
-
 #[cfg(test)]
 mod tests {
     use secrecy::SecretString;
 
-    use super::{
-        Address, EmailAddress, FamilyName, FixedPhoneNumber, MobilePhoneNumber, PostalCode,
-        Remarks, User, UserId,
-    };
-    use crate::common::DomainError;
+    use super::*;
     use crate::models::passwords::tests::VALID_RAW_PASSWORD;
     use crate::models::passwords::{generate_phc_string, PasswordPepper, RawPassword};
-    use crate::models::user::EMAIL_ADDRESS_MAX_LEN;
+    use crate::models::primitives::*;
 
     /// ユーザーを構築できることを確認
     #[test]
@@ -293,165 +214,5 @@ mod tests {
             None,
         )
         .is_err());
-    }
-
-    /// Eメール・アドレスとして妥当な文字列から、Eメール・アドレスを構築できることを確認
-    #[test]
-    fn construct_email_address_from_valid_strings() {
-        let candidates = ["a@a.jp", "foo@example.com"];
-        for candidate in candidates {
-            let instance = EmailAddress::new(candidate).unwrap();
-            assert_eq!(candidate, instance.value());
-        }
-    }
-
-    /// Eメール・アドレスとして無効な文字列から、Eメールアドレスを構築できないことを確認
-    #[test]
-    fn can_not_construct_email_address_from_invalid_strings() {
-        let domain = "@example.com";
-        let length_of_user_name = EMAIL_ADDRESS_MAX_LEN as usize + 1 - domain.len();
-        let mut invalid_email_address = "a".repeat(length_of_user_name);
-        invalid_email_address.push_str(domain);
-        assert_eq!(
-            EMAIL_ADDRESS_MAX_LEN + 1,
-            invalid_email_address.len() as u64
-        );
-
-        let candidates = ["", "a", "a@a.a", "aaaaaa", invalid_email_address.as_str()];
-        for candidate in candidates {
-            match EmailAddress::new(candidate) {
-            Ok(_) => panic!("EmailAddress must not be constructed from invalid string: {}", candidate),
-            Err(err) => match err {
-                DomainError::DomainRule(_) => {},
-                _ =>panic!("DomainError::DomainRule should be raised when constructing from invalid string: {}", candidate)
-            }
-        }
-        }
-    }
-
-    /// ユーザーの名前の性として妥当な文字列から、ユーザー名の名前の姓を構築できることを確認
-    #[test]
-    fn construct_family_name_from_valid_string() {
-        let candidates = [
-            "family_name",
-            " family_name",
-            "family_name ",
-            " family_name ",
-        ];
-        let expected = "family_name";
-        for candidate in candidates {
-            let instance = FamilyName::new(candidate).unwrap();
-            assert_eq!(expected, instance.value(), "`{}`", candidate);
-        }
-    }
-
-    /// ユーザーの名前の性として無効な文字列から、ユーザー名の名前の姓を構築できないことを確認
-    #[test]
-    fn can_not_construct_family_name_from_invalid_strings() {
-        let candidates = [String::from(""), "a".repeat(41), String::from("          ")];
-        for candidate in candidates.iter() {
-            assert!(FamilyName::new(candidate).is_err(), "`{}`", candidate);
-        }
-    }
-
-    /// 郵便番号として妥当な文字列から、郵便番号を構築できることを確認
-    #[test]
-    fn construct_postal_code_from_valid_strings() {
-        let candidates = ["000-0000", "123-4567", "999-9999"];
-        for expected in candidates {
-            let instance = PostalCode::new(expected).unwrap();
-            assert_eq!(expected, instance.value(), "`{}`", expected);
-        }
-    }
-
-    /// 郵便番号として無効な文字列から、郵便番号を構築できないことを確認
-    #[test]
-    fn can_not_construct_postal_code_from_invalid_strings() {
-        let candidates = ["", "11-1111", "111-111", "11a-1111", "111-111a"];
-        for expected in candidates {
-            assert!(PostalCode::new(expected).is_err(), "`{}`", expected);
-        }
-    }
-
-    /// 固定電話番号として妥当な文字列から、固定電話番号を構築できることを確認
-    #[test]
-    fn construct_fixed_phone_number_from_valid_strings() {
-        let candidates = [
-            "01-2345-6789",
-            "012-345-6789",
-            "0123-45-6789",
-            "01234-5-6789",
-        ];
-        for expected in candidates {
-            let instance = FixedPhoneNumber::new(expected).unwrap();
-            assert_eq!(expected, instance.value(), "`{}`", expected);
-        }
-    }
-
-    /// 固定電話番号として無効な文字列から、固定電話番号を構築できないことを確認
-    #[test]
-    fn can_not_construct_fixed_phone_number_from_invalid_strings() {
-        let candidates = [
-            "",
-            "---",
-            "11-1111-1111",
-            "0a-2345-6789",
-            "01-234a-6789",
-            "01-2345-678a",
-            "01a-345-6789",
-            "012-34a-6789",
-            "012-345-678a",
-            "012a-45-6789",
-            "0123-4a-6789",
-            "0123-45-678a",
-            "0123a-5-6789",
-            "01234-a-6789",
-            "01234-5-678a",
-            "01-234-6789",
-            "01-23456-6789",
-            "012-34-6789",
-            "012-3456-6789",
-            "0123-4-6789",
-            "0123-456-6789",
-            "01234--6789",
-            "01234-56-6789",
-        ];
-        for expected in candidates {
-            assert!(FixedPhoneNumber::new(expected).is_err(), "`{}`", expected);
-        }
-    }
-
-    /// 携帯電話番号として妥当な文字列から、携帯電話番号を構築できることを確認
-    #[test]
-    fn construct_mobile_phone_number_from_valid_strings() {
-        let candidates = ["070-1234-5678", "080-1234-5678", "090-1234-5678"];
-        for expected in candidates {
-            let instance = MobilePhoneNumber::new(expected).unwrap();
-            assert_eq!(expected, instance.value(), "`{}`", expected);
-        }
-    }
-
-    /// 携帯電話番号として無効な文字列から、携帯電話番号を構築できないことを確認
-    #[test]
-    fn can_not_construct_mobile_phone_number_from_invalid_strings() {
-        let candidates = [
-            "",
-            "---",
-            "09-1234-5678",
-            "0900-1234-5678",
-            "090-123-5678",
-            "090-12345-5678",
-            "090-1234-567",
-            "090-1234-56789",
-            "010-1234-5678",
-            "190-1234-5678",
-            "091-1234-5678",
-            "09a-1234-5678",
-            "090-123a-5678",
-            "090-1234-567a",
-        ];
-        for expected in candidates {
-            assert!(MobilePhoneNumber::new(expected).is_err(), "`{}`", expected);
-        }
     }
 }
