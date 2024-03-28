@@ -172,6 +172,17 @@ enum FieldType {
     Vec(Type),
 }
 
+/// 特定の属性の、特定の名前の値を取得する。
+///
+/// # 引数
+///
+/// * `attr` - 属性
+/// * `attr_name` - 取得する属性の名前
+/// * `value_name` - 上記属性内に定義された、値を取得する名前
+///
+/// # 戻り値
+///
+/// 値
 fn inspect_name_value(
     attr: &Attribute,
     attr_name: &str,
@@ -188,7 +199,7 @@ fn inspect_name_value(
             syn::Error::new_spanned(attr, format!("failed to parse builder attribute: {}", err))
         })?;
 
-    // builder属性内の名前を`を検索
+    // builder属性内の名前を検索
     for name_value in name_values.iter() {
         if name_value.path.is_ident(value_name) {
             match &name_value.value {
@@ -214,6 +225,17 @@ fn inspect_name_value(
     Ok(None)
 }
 
+/// 識別子に付けられた複数の属性の中から、特定の属性の、特定の名前の値を取得する。
+///
+/// # 引数
+///
+/// * `attrs` - 識別子に付けられた複数の属性
+/// * `attr_name` - 取得する属性の名前
+/// * `value_name` - 上記属性内に定義された、値を取得する名前
+///
+/// # 戻り値
+///
+/// 値
 fn inspect_attr_and_name(
     attrs: &[Attribute],
     attr_name: &str,
