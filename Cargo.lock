@@ -1934,6 +1934,9 @@ name = "routes"
 version = "0.1.0"
 dependencies = [
  "actix-web",
+ "mime",
+ "serde",
+ "serde_json",
  "tracing",
 ]
 

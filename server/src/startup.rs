@@ -1,8 +1,9 @@
 use std::net::TcpListener;
 
 use actix_web::dev::Server;
+use actix_web::middleware::ErrorHandlers;
 use actix_web::{web, App, HttpServer};
-use routes::health_check;
+use routes::{default_error_handler, health_check};
 use sqlx::PgPool;
 use tracing_actix_web::TracingLogger;
 
@@ -20,6 +21,7 @@ pub fn build_http_server(listener: TcpListener, pool: PgPool) -> anyhow::Result<
     // HttpServerを構築
     Ok(HttpServer::new(move || {
         App::new()
+            .wrap(ErrorHandlers::new().default_handler(default_error_handler))
             .wrap(TracingLogger::default())
             .route("/health_check", web::get().to(health_check))
             .app_data(pool.clone())
