@@ -24,7 +24,7 @@ pub fn build_http_server(listener: TcpListener, pool: PgPool) -> anyhow::Result<
         App::new()
             .wrap(ErrorHandlers::new().default_handler(default_error_handler))
             .wrap(TracingLogger::default())
-            .route("/health_check", web::get().to(health_check))
+            .route("/health-check", web::get().to(health_check))
             .service(accounts_scope())
             .app_data(pool.clone())
     })

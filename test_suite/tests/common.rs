@@ -10,7 +10,7 @@ async fn health_check_works() -> anyhow::Result<()> {
 
     // 実行
     let response = client
-        .get(&format!("{}/health_check", app.root_uri))
+        .get(&format!("{}/health-check", app.root_uri))
         .send()
         .await
         .expect("Failed to execute request.");

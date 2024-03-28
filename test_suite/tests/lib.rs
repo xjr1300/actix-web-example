@@ -1,2 +1,2 @@
-mod health_check;
+mod common;
 mod helpers;
