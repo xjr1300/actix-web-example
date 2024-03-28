@@ -659,6 +659,7 @@ dependencies = [
  "macros",
  "once_cell",
  "password-hash",
+ "paste",
  "rand",
  "regex",
  "secrecy",
@@ -1934,13 +1935,16 @@ name = "routes"
 version = "0.1.0"
 dependencies = [
  "actix-web",
+ "anyhow",
  "domain",
  "mime",
  "secrecy",
  "serde",
  "serde_json",
+ "thiserror",
  "time",
  "tracing",
+ "use_cases",
  "uuid",
 ]
 
@@ -2980,6 +2984,16 @@ name = "urlencoding"
 version = "2.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "daf8dba3b7eb870caf1ddeed7bc9d2a049f3cfdfae7cb521b087cc33ae4c49da"
+
+[[package]]
+name = "use_cases"
+version = "0.1.0"
+dependencies = [
+ "domain",
+ "macros",
+ "secrecy",
+ "serde",
+]
 
 [[package]]
 name = "uuid"
