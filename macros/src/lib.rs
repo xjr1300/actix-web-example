@@ -1,12 +1,15 @@
 use proc_macro::TokenStream;
 use syn::{parse_macro_input, DeriveInput};
 
+mod types;
+mod utils;
+
 mod domain_primitive;
 use domain_primitive::{impl_domain_primitive, impl_primitive_display, impl_string_primitive};
 mod getter;
 use getter::impl_getter;
-mod types;
-mod utils;
+mod builder;
+use builder::impl_builder;
 
 /// `DomainPrimitive`導出マクロ
 ///
@@ -90,6 +93,37 @@ pub fn derive_getter(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
 
     match impl_getter(input) {
+        Ok(token_stream) => TokenStream::from(token_stream),
+        Err(err) => TokenStream::from(err.into_compile_error()),
+    }
+}
+
+/// `Builder`導出マクロ
+///
+/// 構造体のビルダーを実装する。
+///
+/// ```text
+/// #[derive(Builder)]
+/// pub struct Command {
+///     executable: String,
+///     #[builder(each = "arg")]
+///     args: Vec<String>,
+///     current_dir: Option<String>,
+/// }
+///
+/// let command = Command::builder()
+///     .executable("cargo".to_owned())
+///     .arg("build".to_owned())
+///     .arg("--release".to_owned())
+///     .build()
+///     .unwrap();
+/// assert_eq!(command.executable, "cargo");
+/// ```
+#[proc_macro_derive(Builder, attributes(builder_validation, builder))]
+pub fn derive_builder(input: TokenStream) -> TokenStream {
+    let input: DeriveInput = parse_macro_input!(input as DeriveInput);
+
+    match impl_builder(input) {
         Ok(token_stream) => TokenStream::from(token_stream),
         Err(err) => TokenStream::from(err.into_compile_error()),
     }
