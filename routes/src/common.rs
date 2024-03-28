@@ -9,11 +9,17 @@ use mime::Mime;
 
 use domain::common::DomainError;
 
+/// リクエスト処理エラー
 #[derive(Debug, Clone, thiserror::Error)]
 pub struct ProcessRequestError {
+    /// HTTPステータス・コード
     status_code: StatusCode,
+    /// レスポンス・ボディ
     body: ErrorResponseBody,
 }
+
+/// リクエスト処理結果
+pub type ProcessRequestResult<T> = Result<T, ProcessRequestError>;
 
 impl ResponseError for ProcessRequestError {
     fn status_code(&self) -> StatusCode {
