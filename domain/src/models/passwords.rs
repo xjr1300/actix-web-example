@@ -97,6 +97,19 @@ pub struct PhcPassword {
     value: SecretString,
 }
 
+impl PhcPassword {
+    pub fn new(value: SecretString) -> DomainResult<Self> {
+        let unwrapped_value = value.expose_secret();
+        if unwrapped_value.is_empty() || 256 < unwrapped_value.len() {
+            return Err(DomainError::Validation(
+                "length of phc string is too long or zero".into(),
+            ));
+        }
+
+        Ok(Self { value })
+    }
+}
+
 /// Argon2idアルゴリズムでパスワードをハッシュ化した、PHC文字列を生成する。
 ///
 /// # 引数
