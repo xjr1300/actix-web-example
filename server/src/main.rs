@@ -3,16 +3,12 @@ use std::path::Path;
 
 use anyhow::anyhow;
 
-use server::settings::{retrieve_app_settings, AppEnvironment, SETTINGS_DIR_NAME};
+use server::settings::{
+    retrieve_app_settings, AppEnvironment, ENV_APP_ENVIRONMENT, ENV_APP_ENVIRONMENT_DEFAULT,
+    SETTINGS_DIR_NAME,
+};
 use server::startup::build_http_server;
-use server::telemetry::{generate_log_subscriber, init_log_subscriber};
-
-/// 動作環境を表現する環境変数とそのデフォルト値
-const ENV_APP_ENVIRONMENT: &str = "APP_ENVIRONMENT";
-const ENV_APP_ENVIRONMENT_DEFAULT: &str = "development";
-
-/// ログ・サブスクライバ名
-const LOG_SUBSCRIBER_NAME: &str = "actix_web_example";
+use server::telemetry::{generate_log_subscriber, init_log_subscriber, LOG_SUBSCRIBER_NAME};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {

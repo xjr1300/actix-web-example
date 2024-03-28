@@ -7,7 +7,7 @@ use sqlx::{Connection as _, Executor as _, PgConnection, PgPool};
 use uuid::Uuid;
 
 use server::settings::{
-    retrieve_app_settings, AppEnvironment, DatabaseSettings, SETTINGS_DIR_NAME,
+    retrieve_app_settings, AppEnvironment, DatabaseSettings, ENV_APP_ENVIRONMENT, SETTINGS_DIR_NAME,
 };
 use server::startup::build_http_server;
 use server::telemetry::{generate_log_subscriber, init_log_subscriber};
@@ -42,7 +42,7 @@ pub async fn spawn_app_for_integration_test() -> anyhow::Result<TestApp> {
     Lazy::force(&TRACING);
 
     // 環境変数からアプリケーションの動作環境を取得
-    let app_env: AppEnvironment = std::env::var("APP_ENVIRONMENT")
+    let app_env: AppEnvironment = std::env::var(ENV_APP_ENVIRONMENT)
         .unwrap_or_else(|_| String::from("development"))
         .into();
 
@@ -56,11 +56,12 @@ pub async fn spawn_app_for_integration_test() -> anyhow::Result<TestApp> {
     // テスト用のデータベースを作成して、接続及び構成
     let pool = configure_database(&app_settings.database).await?;
 
-    // 統合テストが終了すると、HTTPサーバーがリッスンするポートが閉じられる。
-    // すると、actix-webが提供する`Server`が終了して、ここで生み出したスレッドが終了する。
+    // ポート0を指定してTCPソケットにバインドすることで、OSにポート番号の決定を委譲
     let listener = TcpListener::bind("localhost:0").context("failed to bind random port")?;
     let port = listener.local_addr().unwrap().port();
     let server = build_http_server(listener, pool)?;
+    // 統合テストが終了すると、HTTPサーバーがリッスンするポートが閉じられる。
+    // すると、actix-webが提供する`Server`が終了して、ここで生み出したスレッドが終了する。
     tokio::spawn(server);
 
     Ok(TestApp {
