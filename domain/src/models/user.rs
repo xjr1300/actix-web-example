@@ -5,7 +5,7 @@ use validator::Validate;
 
 use macros::{DomainPrimitive, Getter, PrimitiveDisplay, StringPrimitive};
 
-use crate::common::{DomainError, DomainResult};
+use crate::common::{now_jst, DomainError, DomainResult};
 use crate::models::passwords::PhcPassword;
 use crate::models::EntityId;
 
@@ -43,10 +43,10 @@ pub struct User {
     /// アクティブ・フラグ
     #[getter(ret = "val")]
     active: bool,
-    /// 氏名の苗字
+    /// 苗字
     #[getter(ret = "ref")]
     family_name: FamilyName,
-    /// 氏名の名前
+    /// 名前
     #[getter(ret = "ref")]
     given_name: GivenName,
     /// 郵便番号
@@ -64,6 +64,9 @@ pub struct User {
     /// 備考
     #[getter(ret = "ref")]
     remarks: Option<Remarks>,
+    /// 最終ログイン日時
+    #[getter(ret = "val")]
+    last_logged_in_at: Option<OffsetDateTime>,
     /// 作成日時
     #[getter(ret = "val")]
     created_at: OffsetDateTime,
@@ -97,9 +100,7 @@ impl User {
             ));
         }
         // 現在の日時を取得
-        // FIXME: ローカルな日時を設定したいが、`OffsetDateTime::now_local()`が動作しない。
-        // よって、`time`クレートのfeaturesに`local-offset`を設定していない。
-        let dt = OffsetDateTime::now_utc();
+        let dt = now_jst();
 
         Ok(Self {
             id,
@@ -113,6 +114,7 @@ impl User {
             fixed_phone_number,
             mobile_phone_number,
             remarks,
+            last_logged_in_at: None,
             created_at: dt,
             updated_at: dt,
         })

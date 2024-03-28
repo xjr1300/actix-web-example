@@ -1934,10 +1934,14 @@ name = "routes"
 version = "0.1.0"
 dependencies = [
  "actix-web",
+ "domain",
  "mime",
+ "secrecy",
  "serde",
  "serde_json",
+ "time",
  "tracing",
+ "uuid",
 ]
 
 [[package]]
