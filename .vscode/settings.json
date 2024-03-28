@@ -6,6 +6,7 @@
     "Hasher",
     "Hmac",
     "idents",
+    "qself",
     "reqwest"
   ]
 }

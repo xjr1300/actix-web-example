@@ -260,7 +260,7 @@ pub(crate) fn impl_string_primitive(input: DeriveInput) -> syn::Result<TokenStre
 
     Ok(quote! {
         impl #impl_generics #ident #ty_generics #where_clause {
-            pub fn new<T: std::string::ToString>(value: T) -> DomainResult<Self> {
+            pub fn new<T: std::string::ToString>(value: T) -> crate::common::DomainResult<Self> {
                 let value = value.to_string().trim().to_string();
                 let instance = Self {
                     value,
