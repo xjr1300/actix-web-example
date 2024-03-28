@@ -76,6 +76,7 @@ pub struct SignupResponseBody {
     updated_at: OffsetDateTime,
 }
 
+/// サインアップ・リクエスト・ボディの内容を、ユース・ケース層で扱うDTOに変換する。
 impl TryFrom<SignupRequestBody> for SignupUser {
     type Error = ProcessRequestError;
 

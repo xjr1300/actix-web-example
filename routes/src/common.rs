@@ -9,7 +9,15 @@ use mime::Mime;
 
 use domain::common::DomainError;
 
+/// リクエスト処理結果
+pub type ProcessRequestResult<T> = Result<T, ProcessRequestError>;
+
 /// リクエスト処理エラー
+///
+/// * ドメイン層で発生したエラーは、`DomainError` -> `ProcessRequestError`に変換する。
+/// * ユース・ケース層で発生したエラーは、次のように変換する。
+///   * ユース・ケースでエラーが発生した場合、`FooUseCaseError` -> `ProcessRequestError`
+///   * ユース・ケースがドメイン層のエラーを取得した場合、`DomainError` -> `FooUseCaseError` -> `ProcessRequestError`
 #[derive(Debug, Clone, thiserror::Error)]
 pub struct ProcessRequestError {
     /// HTTPステータス・コード
@@ -18,9 +26,7 @@ pub struct ProcessRequestError {
     body: ErrorResponseBody,
 }
 
-/// リクエスト処理結果
-pub type ProcessRequestResult<T> = Result<T, ProcessRequestError>;
-
+/// リクエスト処理エラーを、`actix-web`のエラー・レスポンスとして扱えるように`ResponseError`を実装する。
 impl ResponseError for ProcessRequestError {
     fn status_code(&self) -> StatusCode {
         self.status_code
@@ -53,6 +59,7 @@ impl std::fmt::Display for ProcessRequestError {
     }
 }
 
+/// ドメイン層で発生したエラーをリクエスト処理エラーに変換する。
 impl From<DomainError> for ProcessRequestError {
     fn from(value: DomainError) -> Self {
         match value {
