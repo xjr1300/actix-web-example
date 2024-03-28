@@ -4,6 +4,10 @@ use time::OffsetDateTime;
 use uuid::Uuid;
 
 use domain::common::now_jst;
+use domain::models::primitives::*;
+use use_cases::accounts::SignupUser;
+
+use crate::common::ProcessRequestError;
 
 /// アカウントスコープを返却する。
 pub fn accounts_scope() -> actix_web::Scope {
@@ -65,4 +69,38 @@ pub struct SignupResponseBody {
     /// 更新日時
     #[serde(with = "time::serde::rfc3339")]
     updated_at: OffsetDateTime,
+}
+
+impl TryFrom<SignupRequestBody> for SignupUser {
+    type Error = ProcessRequestError;
+
+    fn try_from(value: SignupRequestBody) -> Result<Self, Self::Error> {
+        let email = EmailAddress::new(value.email)?;
+        let family_name = FamilyName::new(value.family_name)?;
+        let given_name = GivenName::new(value.given_name)?;
+        let postal_code = PostalCode::new(value.postal_code)?;
+        let address = Address::new(value.address)?;
+        let fixed_phone_number = to_option_fixed_phone_number(value.fixed_phone_number)?;
+        let mobile_phone_number = to_option_mobile_phone_number(value.mobile_phone_number)?;
+        let remarks = to_option_remarks(value.remarks)?;
+
+        let mut builder = SignupUser::builder();
+        builder
+            .email(email)
+            .password(value.password)
+            .family_name(family_name)
+            .given_name(given_name)
+            .postal_code(postal_code)
+            .address(address);
+        if let Some(fixed_phone_number) = fixed_phone_number {
+            builder.fixed_phone_number(fixed_phone_number);
+        }
+        if let Some(mobile_phone_number) = mobile_phone_number {
+            builder.mobile_phone_number(mobile_phone_number);
+        }
+        if let Some(remarks) = remarks {
+            builder.remarks(remarks);
+        }
+        Ok(builder.build().unwrap())
+    }
 }

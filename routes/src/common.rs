@@ -1,15 +1,79 @@
 use std::{borrow::Cow, str::FromStr as _};
 
 use actix_web::dev::ServiceResponse;
-use actix_web::http::header::{self, HeaderMap};
+use actix_web::http::header::{self, HeaderMap, TryIntoHeaderValue as _};
+use actix_web::http::StatusCode;
 use actix_web::middleware::ErrorHandlerResponse;
-use actix_web::{HttpResponse, Responder};
+use actix_web::{HttpResponse, Responder, ResponseError};
 use mime::Mime;
+
+use domain::common::DomainError;
+
+#[derive(Debug, Clone, thiserror::Error)]
+pub struct ProcessRequestError {
+    status_code: StatusCode,
+    body: ErrorResponseBody,
+}
+
+impl ResponseError for ProcessRequestError {
+    fn status_code(&self) -> StatusCode {
+        self.status_code
+    }
+
+    fn error_response(&self) -> HttpResponse {
+        let res = HttpResponse::new(self.status_code());
+        let mut res = res.set_body(serde_json::to_string(&self.body).unwrap());
+        let mime = mime::APPLICATION_JSON.try_into_value().unwrap();
+        res.headers_mut().insert(header::CONTENT_TYPE, mime);
+
+        res.map_into_boxed_body()
+    }
+}
+
+impl std::fmt::Display for ProcessRequestError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.status_code.canonical_reason() {
+            Some(reason) => {
+                write!(
+                    f,
+                    "status_code={}, reason={}, {}",
+                    self.status_code, reason, self.body
+                )
+            }
+            None => {
+                write!(f, "status_code={}, {}", self.status_code, self.body)
+            }
+        }
+    }
+}
+
+impl From<DomainError> for ProcessRequestError {
+    fn from(value: DomainError) -> Self {
+        match value {
+            DomainError::Unexpected(err) | DomainError::Repository(err) => ProcessRequestError {
+                status_code: StatusCode::INTERNAL_SERVER_ERROR,
+                body: ErrorResponseBody {
+                    error_code: None,
+                    message: format!("{err}").into(),
+                },
+            },
+            DomainError::Validation(message) | DomainError::DomainRule(message) => {
+                ProcessRequestError {
+                    status_code: StatusCode::BAD_REQUEST,
+                    body: ErrorResponseBody {
+                        error_code: None,
+                        message,
+                    },
+                }
+            }
+        }
+    }
+}
 
 /// エラー・レスポンス・ボディ
 ///
 /// アプリケーションから返されるエラー・レスポンスのボディを表現する。
-#[derive(serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ErrorResponseBody {
     /// アプリ独自のエラー・コード
@@ -19,6 +83,23 @@ pub struct ErrorResponseBody {
 
     /// エラー・メッセージ
     message: Cow<'static, str>,
+}
+
+impl std::fmt::Display for ErrorResponseBody {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.error_code {
+            Some(error_code) => {
+                write!(
+                    f,
+                    r#"error_code={}, message="{}""#,
+                    error_code, self.message
+                )
+            }
+            None => {
+                write!(f, r#"message="{}""#, self.message)
+            }
+        }
+    }
 }
 
 impl ErrorResponseBody {
