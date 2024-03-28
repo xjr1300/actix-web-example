@@ -7,7 +7,7 @@ use domain::common::now_jst;
 use domain::models::primitives::*;
 use use_cases::accounts::SignupUser;
 
-use crate::common::ProcessRequestError;
+use crate::common::{ProcessRequestError, ProcessRequestResult};
 
 /// アカウントスコープを返却する。
 pub fn accounts_scope() -> actix_web::Scope {
@@ -15,16 +15,21 @@ pub fn accounts_scope() -> actix_web::Scope {
 }
 
 /// サインアップ
-pub async fn signup(request_body: web::Json<SignupRequestBody>) -> HttpResponse {
+pub async fn signup(
+    request_body: web::Json<SignupRequestBody>,
+) -> ProcessRequestResult<HttpResponse> {
+    let email = request_body.email.clone();
+    let _signup_user = SignupUser::try_from(request_body.0).map_err(ProcessRequestError::from)?;
+
     let dt = now_jst();
     let response_body = SignupResponseBody {
         id: Uuid::new_v4(),
-        email: request_body.email.clone(),
+        email: email.to_string(),
         created_at: dt,
         updated_at: dt,
     };
 
-    HttpResponse::Ok().json(response_body)
+    Ok(HttpResponse::Ok().json(response_body))
 }
 
 /// サインアップ・リクエスト・ボディ
