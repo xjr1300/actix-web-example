@@ -10,6 +10,10 @@ use sqlx::{ConnectOptions as _, PgPool};
 /// 設定ファイル・ディレクトリ・パス
 pub const SETTINGS_DIR_NAME: &str = "settings";
 
+/// 動作環境を表現する環境変数とそのデフォルト値
+pub const ENV_APP_ENVIRONMENT: &str = "APP_ENVIRONMENT";
+pub const ENV_APP_ENVIRONMENT_DEFAULT: &str = "development";
+
 /// アプリの動作環境
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EnumDisplay)]
 #[enum_display(case = "Lower")]
