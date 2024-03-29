@@ -1178,7 +1178,14 @@ dependencies = [
 name = "infra"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
+ "domain",
+ "paste",
+ "secrecy",
  "sqlx",
+ "time",
+ "use_cases",
+ "uuid",
 ]
 
 [[package]]
