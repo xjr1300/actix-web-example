@@ -29,10 +29,11 @@ pub(crate) fn impl_builder(input: DeriveInput) -> Result<TokenStream2> {
         let fields = named
             .iter()
             .map(|f| (f.ident.as_ref().expect("field have ident"), &f.ty));
-        let idents = fields.clone().map(|(ident, _)| ident);
-        let builder_fields = fields
-            .clone()
-            .map(|(ident, ty)| quote! {#ident: ::core::option::Option<#ty>});
+        //let idents = fields.clone().map(|(ident, _)| ident);
+        let builder_fields = fields.clone().map(|(ident, ty)| match field_type(ty) {
+            FieldType::Option(inner_ty) => quote! {#ident: ::core::option::Option<#inner_ty>},
+            _ => quote! {#ident: ::core::option::Option<#ty>},
+        });
         let builder_init_fields = fields.clone().map(builder_init_field);
         let each_attributes = named
             .iter()
@@ -45,6 +46,8 @@ pub(crate) fn impl_builder(input: DeriveInput) -> Result<TokenStream2> {
             .clone()
             .zip(each_attributes)
             .map(|((ident, ty), maybe_each)| impl_builder_method(&vis, ident, ty, maybe_each));
+
+        let build_method_inners = fields.map(impl_build_method_fields);
 
         Ok(quote! {
             #vis struct #builder {
@@ -66,12 +69,9 @@ pub(crate) fn impl_builder(input: DeriveInput) -> Result<TokenStream2> {
                 >
                 {
                     let #instance = #ident {
-                        #(
-                            #idents: self.#idents.take().ok_or_else(||
-                                format!("{} is not provided", stringify!(#idents))
-                            )?
-                        ),*
+                        #(#build_method_inners),*
                     };
+
                     #validator
 
                     Ok(#instance)
@@ -93,10 +93,8 @@ fn impl_builder_method(
     match field_type(ty) {
         FieldType::Option(inner_ty) => {
             quote! {
-                #vis fn #ident (&mut self, #ident: #inner_ty) -> &mut Self {
-                    self.#ident = ::core::option::Option::Some(
-                        ::core::option::Option::Some(#ident)
-                    );
+                #vis fn #ident (&mut self, #ident: ::core::option::Option<#inner_ty>) -> &mut Self {
+                    self.#ident = #ident;
                     self
                 }
             }
@@ -123,15 +121,28 @@ fn impl_builder_method(
 
 fn builder_init_field((ident, ty): (&Ident, &Type)) -> TokenStream2 {
     match field_type(ty) {
-        FieldType::Option(_inner_ty) => {
-            quote! { #ident: ::core::option::Option::Some(::core::option::Option::None)}
+        FieldType::Vec(_) => {
+            quote! { #ident: ::core::option::Option::Some(::std::vec::Vec::new()) }
         }
-        FieldType::Vec(_inner_ty) => {
-            quote! { #ident: ::core::option::Option::Some(::std::vec::Vec::new())}
+        FieldType::Option(_) | FieldType::Raw => {
+            quote! { #ident: ::core::option::Option::None }
         }
-        FieldType::Raw => {
-            quote! { #ident: ::core::option::Option::None}
-        }
+    }
+}
+
+fn impl_build_method_fields((ident, ty): (&Ident, &Type)) -> TokenStream2 {
+    match field_type(ty) {
+        FieldType::Option(_) => quote! {
+            #ident: match self.#ident {
+                ::core::option::Option::Some(_) => ::core::option::Option::Some(self.#ident.take().unwrap()),
+                ::core::option::Option::None => ::core::option::Option::None,
+            }
+        },
+        _ => quote! {
+            #ident: self.#ident.take().ok_or_else(||
+                format!("{} is not provided", stringify!(#ident))
+            )?
+        },
     }
 }
 
