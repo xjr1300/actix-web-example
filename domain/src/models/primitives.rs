@@ -54,6 +54,15 @@ impl<T> Default for EntityId<T> {
     }
 }
 
+impl<T> EntityId<T> {
+    pub fn new(value: Uuid) -> Self {
+        Self {
+            value,
+            _phantom: Default::default(),
+        }
+    }
+}
+
 /// Eメール・アドレスの長さ
 ///
 /// Eメール・アドレスの文字数の最小値は規定されていないため、"a@a.jp"のようなアドレスを想定して6文字とした。

@@ -11,6 +11,7 @@ use crate::types::CommaPunctuatedNameValues;
 const MACRO_NAME: &str = "DomainPrimitive";
 
 pub(crate) fn impl_domain_primitive(input: DeriveInput) -> syn::Result<TokenStream2> {
+    let vis = &input.vis;
     let ident = &input.ident;
     let generics = &input.generics;
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
@@ -23,7 +24,6 @@ pub(crate) fn impl_domain_primitive(input: DeriveInput) -> syn::Result<TokenStre
 
     // `value`フィールドを取得
     let field = retrieve_value_field(ident, fields, MACRO_NAME)?;
-    let vis = &field.vis;
     let ty = &field.ty;
 
     // `value_getter`属性に定義された名前と値のリストを取得

@@ -4,8 +4,8 @@ use syn::{parse_macro_input, DeriveInput};
 mod types;
 mod utils;
 
-mod domain_primitive;
-use domain_primitive::{impl_domain_primitive, impl_primitive_display, impl_string_primitive};
+mod primitive;
+use primitive::{impl_domain_primitive, impl_primitive_display, impl_string_primitive};
 mod getter;
 use getter::impl_getter;
 mod builder;
