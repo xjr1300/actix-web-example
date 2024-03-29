@@ -109,12 +109,15 @@ pub fn derive_getter(input: TokenStream) -> TokenStream {
 ///     #[builder(each = "arg")]
 ///     args: Vec<String>,
 ///     current_dir: Option<String>,
+///     value: Option<u8>,
 /// }
 ///
-/// let command = Command::builder()
+/// let command = CommandBuilder::new()
 ///     .executable("cargo".to_owned())
 ///     .arg("build".to_owned())
 ///     .arg("--release".to_owned())
+///     .current_dir(Some(String::from("/home")))
+///     .value(None)
 ///     .build()
 ///     .unwrap();
 /// assert_eq!(command.executable, "cargo");
