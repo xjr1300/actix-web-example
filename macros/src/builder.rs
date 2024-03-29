@@ -52,6 +52,12 @@ pub(crate) fn impl_builder(input: DeriveInput) -> Result<TokenStream2> {
             }
 
             impl #builder {
+                #vis fn new() -> Self {
+                    Self {
+                        #(#builder_init_fields),*
+                    }
+                }
+
                 #(#builder_methods)*
 
                 #vis fn build(&mut self) -> ::core::result::Result<
@@ -69,14 +75,6 @@ pub(crate) fn impl_builder(input: DeriveInput) -> Result<TokenStream2> {
                     #validator
 
                     Ok(#instance)
-                }
-            }
-
-            impl #ident {
-                #vis fn builder() -> #builder {
-                    #builder {
-                        #(#builder_init_fields),*
-                    }
                 }
             }
         })

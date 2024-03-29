@@ -5,7 +5,7 @@ use uuid::Uuid;
 
 use domain::common::now_jst;
 use domain::models::primitives::*;
-use use_cases::accounts::SignupUser;
+use use_cases::accounts::{SignupUser, SignupUserBuilder};
 
 use crate::common::{ProcessRequestError, ProcessRequestResult};
 
@@ -90,7 +90,7 @@ impl TryFrom<SignupRequestBody> for SignupUser {
         let mobile_phone_number = to_option_mobile_phone_number(value.mobile_phone_number)?;
         let remarks = to_option_remarks(value.remarks)?;
 
-        let mut builder = SignupUser::builder();
+        let mut builder = SignupUserBuilder::new();
         builder
             .email(email)
             .password(value.password)
