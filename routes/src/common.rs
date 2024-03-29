@@ -181,5 +181,7 @@ pub fn default_error_handler<B>(
 /// ヘルス・チェック
 #[tracing::instrument(name = "health check")]
 pub async fn health_check() -> impl Responder {
-    HttpResponse::Ok().body("It works!")
+    HttpResponse::Ok()
+        .insert_header(header::ContentType(mime::APPLICATION_JSON))
+        .body(r#"{"message": "It works!"}"#)
 }
