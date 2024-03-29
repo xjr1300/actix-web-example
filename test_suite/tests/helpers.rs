@@ -52,7 +52,7 @@ pub async fn spawn_app_for_integration_test() -> anyhow::Result<TestApp> {
     let mut app_settings = retrieve_app_settings(app_env, settings_dir)?;
 
     // テスト用のデータベースの名前を設定
-    app_settings.database.name = format!("test_awe_{}", Uuid::new_v4());
+    app_settings.database.name = format!("awe_test_{}", Uuid::new_v4()).replace('-', "_");
     // テスト用のデータベースを作成して、接続及び構成
     let pool = configure_database(&app_settings.database).await?;
 
