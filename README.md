@@ -92,3 +92,13 @@ fn test_sync() {
     // 同期テスト・コード
 }
 ```
+
+## テーブルの制約名の形式
+
+| 制約の種類                 | 制約名の形式                                           | 備考          |
+| -------------------------- | ------------------------------------------------------ | ------------- |
+| 主キー制約                 | `pk_<table-name>`                                      | Primary key   |
+| ユニーク・インデックス制約 | `ak_<table-name>-<field>[_<field>..]`                  | Alternate key |
+| インデックス制約           | `ix_<table-name>-<field>[_<field>..]`                  | Index         |
+| 外部キー制約               | `fk_<table-name>-<field>[_<field>..]_<ref-table-name>` | Foreign key   |
+| チェック制約               | `ck_<table-name>-<field>[_<field>..]`                  | Check         |
