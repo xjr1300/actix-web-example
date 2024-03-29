@@ -97,16 +97,11 @@ impl TryFrom<SignupRequestBody> for SignupUser {
             .family_name(family_name)
             .given_name(given_name)
             .postal_code(postal_code)
-            .address(address);
-        if let Some(fixed_phone_number) = fixed_phone_number {
-            builder.fixed_phone_number(fixed_phone_number);
-        }
-        if let Some(mobile_phone_number) = mobile_phone_number {
-            builder.mobile_phone_number(mobile_phone_number);
-        }
-        if let Some(remarks) = remarks {
-            builder.remarks(remarks);
-        }
+            .address(address)
+            .fixed_phone_number(fixed_phone_number)
+            .mobile_phone_number(mobile_phone_number)
+            .remarks(remarks);
+
         Ok(builder.build().unwrap())
     }
 }
