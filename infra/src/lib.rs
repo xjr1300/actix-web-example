@@ -8,18 +8,12 @@ macro_rules! optional_primitive {
     ($t1:ty, $t2:ty) => {
         paste! {
             pub(crate) fn [<optional_ $t1:snake:lower _primitive>](value: Option<$t2>) -> Option<$t1> {
-                match value {
-                    Some(value) => Some($t1::new(value).unwrap()),
-                    None => None,
-                }
+                value.map(|v| $t1::new(v).unwrap())
             }
 
             #[allow(dead_code)]
             pub(crate) fn [<optional_ $t1:snake:lower _value>](instance: &Option<$t1>) -> Option<$t2> {
-                match instance {
-                    Some(instance) => Some(instance.value().to_owned()),
-                    None => None,
-                }
+                instance.as_ref().map(|i| i.value().to_owned())
             }
         }
     };
