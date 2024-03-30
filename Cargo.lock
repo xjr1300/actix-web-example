@@ -2599,11 +2599,14 @@ name = "test_suite"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "domain",
  "dotenvx",
+ "infra",
  "log",
  "mime",
  "once_cell",
  "reqwest",
+ "secrecy",
  "serde_json",
  "server",
  "sqlx",
