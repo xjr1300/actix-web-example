@@ -101,4 +101,6 @@ fn test_sync() {
 | ユニーク・インデックス制約 | `ak_<table-name>-<field>[_<field>..]`                  | Alternate key |
 | インデックス制約           | `ix_<table-name>-<field>[_<field>..]`                  | Index         |
 | 外部キー制約               | `fk_<table-name>-<field>[_<field>..]_<ref-table-name>` | Foreign key   |
-| チェック制約               | `ck_<table-name>-<field>[_<field>..]`                  | Check         |
+| チェック制約               | `ck_<table-name>-<content>`                            | Check         |
+
+> `reason`には、チェック制約の内容を記述

@@ -15,5 +15,9 @@ CREATE TABLE IF NOT EXISTS users (
     created_at TIMESTAMP WITH TIME ZONE NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL,
     CONSTRAINT pk_users PRIMARY KEY (id),
-    CONSTRAINT ak_users_email UNIQUE (email)
+    CONSTRAINT ak_users_email UNIQUE (email),
+    CONSTRAINT ck_users_either_phone_numbers_must_be_not_null CHECK (
+        fixed_phone_number IS NOT NULL
+        OR mobile_phone_number IS NOT NULL
+    )
 );
