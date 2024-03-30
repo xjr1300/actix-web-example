@@ -3,10 +3,11 @@ use std::net::TcpListener;
 use actix_web::dev::Server;
 use actix_web::middleware::ErrorHandlers;
 use actix_web::{web, App, HttpServer};
-use routes::accounts::accounts_scope;
-use routes::common::{default_error_handler, health_check};
 use sqlx::PgPool;
 use tracing_actix_web::TracingLogger;
+
+use routes::accounts::accounts_scope;
+use routes::common::{default_error_handler, health_check};
 
 /// HTTPサーバーを構築する。
 ///

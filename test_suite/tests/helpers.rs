@@ -2,12 +2,12 @@ use std::net::TcpListener;
 use std::path::Path;
 
 use anyhow::Context as _;
-use domain::common::now_jst;
 use once_cell::sync::Lazy;
 use secrecy::SecretString;
 use sqlx::{Connection as _, Executor as _, PgConnection, PgPool};
 use uuid::Uuid;
 
+use domain::common::now_jst;
 use domain::models::passwords::PhcPassword;
 use domain::models::primitives::*;
 use domain::models::user::{User, UserBuilder, UserId};
