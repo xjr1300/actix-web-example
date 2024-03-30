@@ -1,4 +1,4 @@
-use crate::helpers::spawn_app_for_integration_test;
+use crate::helpers::spawn_test_app;
 
 pub struct ResponseParts {
     pub status_code: reqwest::StatusCode,
@@ -20,7 +20,7 @@ pub async fn split_response(response: reqwest::Response) -> anyhow::Result<Respo
 #[ignore]
 async fn health_check_works() -> anyhow::Result<()> {
     // 準備
-    let app = spawn_app_for_integration_test().await?;
+    let app = spawn_test_app().await?;
     let client = reqwest::Client::new();
 
     // 実行
@@ -50,7 +50,7 @@ async fn health_check_works() -> anyhow::Result<()> {
 #[ignore]
 async fn not_found_works() -> anyhow::Result<()> {
     // 準備
-    let app = spawn_app_for_integration_test().await?;
+    let app = spawn_test_app().await?;
     let client = reqwest::Client::new();
 
     // 実行

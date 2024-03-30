@@ -15,5 +15,5 @@ pub trait UserRepository: Send + Sync + 'static {
     /// # 戻り値
     ///
     /// * 登録したユーザー
-    async fn create(user: User) -> DomainResult<User>;
+    async fn create(&self, user: User) -> DomainResult<User>;
 }

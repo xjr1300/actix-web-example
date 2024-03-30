@@ -2,10 +2,15 @@ use std::net::TcpListener;
 use std::path::Path;
 
 use anyhow::Context as _;
+use domain::common::now_jst;
 use once_cell::sync::Lazy;
+use secrecy::SecretString;
 use sqlx::{Connection as _, Executor as _, PgConnection, PgPool};
 use uuid::Uuid;
 
+use domain::models::passwords::PhcPassword;
+use domain::models::primitives::*;
+use domain::models::user::{User, UserBuilder, UserId};
 use server::settings::{
     retrieve_app_settings, AppEnvironment, DatabaseSettings, ENV_APP_ENVIRONMENT, SETTINGS_DIR_NAME,
 };
@@ -30,14 +35,16 @@ static TRACING: Lazy<()> = Lazy::new(|| {
 pub struct TestApp {
     /// アプリのルートURI
     pub root_uri: String,
+    /// データベース接続プール
+    pub pool: PgPool,
 }
 
 /// 統合テスト用のHTTPサーバーを起動する。
 ///
 /// # 戻り値
 ///
-/// 統合テスト用のHTTPサーバーのルートURI
-pub async fn spawn_app_for_integration_test() -> anyhow::Result<TestApp> {
+/// 統合テスト用アプリ
+pub async fn spawn_test_app() -> anyhow::Result<TestApp> {
     dotenvx::dotenv()?;
     Lazy::force(&TRACING);
 
@@ -59,13 +66,14 @@ pub async fn spawn_app_for_integration_test() -> anyhow::Result<TestApp> {
     // ポート0を指定してTCPソケットにバインドすることで、OSにポート番号の決定を委譲
     let listener = TcpListener::bind("localhost:0").context("failed to bind random port")?;
     let port = listener.local_addr().unwrap().port();
-    let server = build_http_server(listener, pool)?;
+    let server = build_http_server(listener, pool.clone())?;
     // 統合テストが終了すると、HTTPサーバーがリッスンするポートが閉じられる。
     // すると、actix-webが提供する`Server`が終了して、ここで生み出したスレッドが終了する。
     tokio::spawn(server);
 
     Ok(TestApp {
         root_uri: format!("http://localhost:{}", port),
+        pool,
     })
 }
 
@@ -98,4 +106,59 @@ pub async fn configure_database(settings: &DatabaseSettings) -> anyhow::Result<P
     }
 
     Ok(pool)
+}
+
+/// cspell: disable-next-line
+pub const RAW_PHC_PASSWORD: &str = "$argon2id$v=19$m=65536,t=2,p=1$gZiV/M1gPc22ElAH/Jh1Hw$CWOrkoo7oJBQ/iyh7uJ0LO2aLEfrHwTWllSAxT0zRno";
+
+pub fn generate_phc_password() -> PhcPassword {
+    PhcPassword::new(SecretString::new(String::from(RAW_PHC_PASSWORD))).unwrap()
+}
+
+pub fn generate_family_name() -> FamilyName {
+    FamilyName::new("山田").unwrap()
+}
+
+pub fn generate_given_name() -> GivenName {
+    GivenName::new("太郎").unwrap()
+}
+
+pub fn generate_postal_code() -> PostalCode {
+    PostalCode::new("105-0011").unwrap()
+}
+
+pub fn generate_address() -> Address {
+    Address::new("東京都港区芝公園4-2-8").unwrap()
+}
+
+pub fn generate_fixed_phone_number() -> FixedPhoneNumber {
+    FixedPhoneNumber::new("03-3433-5111").unwrap()
+}
+
+pub fn generate_mobile_phone_number() -> MobilePhoneNumber {
+    MobilePhoneNumber::new("090-1234-5678").unwrap()
+}
+
+pub fn generate_remarks() -> Remarks {
+    Remarks::new("すもももももももものうち。もももすももももものうち。").unwrap()
+}
+
+pub fn generate_user(id: UserId, email: EmailAddress) -> User {
+    let dt = now_jst();
+    UserBuilder::new()
+        .id(id)
+        .email(email)
+        .password(generate_phc_password())
+        .active(true)
+        .family_name(generate_family_name())
+        .given_name(generate_given_name())
+        .postal_code(generate_postal_code())
+        .address(generate_address())
+        .fixed_phone_number(Some(generate_fixed_phone_number()))
+        .mobile_phone_number(Some(generate_mobile_phone_number()))
+        .remarks(Some(generate_remarks()))
+        .created_at(dt)
+        .updated_at(dt)
+        .build()
+        .unwrap()
 }
