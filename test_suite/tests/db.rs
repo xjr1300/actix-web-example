@@ -1,7 +1,7 @@
-use domain::models::primitives::EmailAddress;
-use domain::models::user::{User, UserId};
 use secrecy::ExposeSecret as _;
 
+use domain::models::primitives::EmailAddress;
+use domain::models::user::{User, UserId};
 use infra::repositories::postgres::common::{
     commit_transaction, IsolationLevel, PgRepository, PgTransaction,
 };

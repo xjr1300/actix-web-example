@@ -6,8 +6,6 @@ use crate::common::{now_jst, DomainError, DomainResult};
 use crate::models::passwords::PhcPassword;
 use crate::models::primitives::*;
 
-use super::primitives::{EmailAddress, FamilyName};
-
 /// ユーザーID
 pub type UserId = EntityId<User>;
 
@@ -138,7 +136,6 @@ mod tests {
     use super::*;
     use crate::models::passwords::tests::VALID_RAW_PASSWORD;
     use crate::models::passwords::{generate_phc_string, PasswordPepper, RawPassword};
-    use crate::models::primitives::*;
 
     /// ユーザーを構築できることを確認
     #[test]

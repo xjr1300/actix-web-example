@@ -4,9 +4,10 @@ use std::str::FromStr as _;
 use anyhow::anyhow;
 use argon2::password_hash::SaltString;
 use argon2::{Algorithm, Argon2, Params, PasswordHash, PasswordHasher, PasswordVerifier, Version};
-use macros::DomainPrimitive;
 use secrecy::{ExposeSecret as _, SecretString};
 use validator::Validate;
+
+use macros::DomainPrimitive;
 
 use crate::common::{DomainError, DomainResult};
 
