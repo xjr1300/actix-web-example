@@ -1,6 +1,6 @@
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote};
-use syn::{spanned::Spanned, DeriveInput, Ident, Lit};
+use syn::{spanned::Spanned, DeriveInput, Lit};
 
 use crate::utils::{is_data_struct, retrieve_name_values_list};
 
@@ -16,7 +16,7 @@ pub(crate) fn impl_tuple_optional_string_primitive(
     // 検証属性を取得
     let validation = retrieve_primitive_validation_value(&input)?;
     // try_from_strメソッドを実装
-    let try_from_str = impl_try_from_str_method(ident, &validation);
+    let try_from_str = impl_try_from_str_method(&ident.to_string(), &validation);
 
     Ok(quote! {
         impl #impl_generics #ident #ty_generics #where_clause {
@@ -84,13 +84,13 @@ pub(crate) fn impl_tuple_optional_string_primitive(
     })
 }
 
-fn impl_try_from_str_method(ident: &Ident, validation: &Validation) -> TokenStream2 {
+fn impl_try_from_str_method(name: &str, validation: &Validation) -> TokenStream2 {
     let mut validation_tokens: Vec<TokenStream2> = vec![];
     if let Some(min) = validation.min {
         validation_tokens.push(
             quote! {
                 if value.len() < #min {
-                    return Err(DomainError::Validation(format!("the string length of {} must be at least {} characters", stringify!(ident), #min).into()));
+                    return Err(DomainError::Validation(format!("the string length of {} must be at least {} characters", #name, #min).into()));
                 }
             }
         );
@@ -99,7 +99,7 @@ fn impl_try_from_str_method(ident: &Ident, validation: &Validation) -> TokenStre
         validation_tokens.push(
             quote! {
                 if #max < value.len() {
-                    return Err(DomainError::Validation(format!("the string length of {} must be {} characters or less", stringify!(ident), #max)into()));
+                    return Err(DomainError::Validation(format!("the string length of {} must be {} characters or less", #name, #max)into()));
                 }
             }
         );
@@ -109,7 +109,7 @@ fn impl_try_from_str_method(ident: &Ident, validation: &Validation) -> TokenStre
             let re = regex::Regex::new(#regex).unwrap();
             if !re.is_match(value) {
                 return Err(DomainError::Validation(
-                    format!("{} must match the regular expression", stringify!(ident)).into(),
+                    format!("{} must match the regular expression", #name).into(),
                 ));
             }
         });

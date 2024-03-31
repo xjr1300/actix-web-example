@@ -86,9 +86,9 @@ impl TryFrom<SignupRequestBody> for SignupUser {
         let given_name = GivenName::new(value.given_name)?;
         let postal_code = PostalCode::new(value.postal_code)?;
         let address = Address::new(value.address)?;
-        let fixed_phone_number = to_option_fixed_phone_number(value.fixed_phone_number)?;
-        let mobile_phone_number = to_option_mobile_phone_number(value.mobile_phone_number)?;
-        let remarks = to_option_remarks(value.remarks)?;
+        let fixed_phone_number = value.fixed_phone_number.try_into()?;
+        let mobile_phone_number = value.mobile_phone_number.try_into()?;
+        let remarks = value.remarks.try_into()?;
 
         let mut builder = SignupUserBuilder::new();
         builder

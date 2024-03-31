@@ -1,14 +1,13 @@
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote};
-use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
 use syn::{
-    AngleBracketedGenericArguments, Attribute, Data, DataStruct, DeriveInput, Expr, Fields,
-    FieldsNamed, GenericArgument, Ident, Lit, Path, PathArguments, PathSegment, Type, TypePath,
-    Visibility,
+    AngleBracketedGenericArguments, Data, DataStruct, DeriveInput, Fields, FieldsNamed,
+    GenericArgument, Ident, Path, PathArguments, PathSegment, Type, TypePath, Visibility,
 };
 
-use crate::types::{CommaPunctuatedFields, CommaPunctuatedNameValues};
+use crate::types::CommaPunctuatedFields;
+use crate::utils::{inspect_attr_and_name_str, inspect_name_value_str};
 
 pub(crate) fn impl_builder(input: DeriveInput) -> syn::Result<TokenStream2> {
     if let Data::Struct(DataStruct {
@@ -31,7 +30,7 @@ pub(crate) fn impl_builder(input: DeriveInput) -> syn::Result<TokenStream2> {
         // ビルダーのsetterメソッドを実装
         let builder_setter_methods = impl_builder_setter_methods(&vis, &fields, &each_values);
         // ビルダーの`build`メソッドを実装
-        let func_ident = inspect_attr_and_name(&input.attrs, "builder_validation", "func")?;
+        let func_ident = inspect_attr_and_name_str(&input.attrs, "builder_validation", "func")?;
         let builder_build_method =
             impl_builder_build_method(&vis, &struct_ident, &fields, func_ident.as_ref());
 
@@ -134,7 +133,16 @@ fn retrieve_each_name_value(fields: &CommaPunctuatedFields) -> syn::Result<Vec<O
     fields
         .iter()
         .map(|f| match f.attrs.first() {
-            Some(attr) => inspect_name_value(attr, "builder", "each"),
+            Some(attr) => {
+                let value = inspect_name_value_str(attr, "builder", "each");
+                match value {
+                    Ok(value) => match value {
+                        Some(value) => Ok(Some(format_ident!("{}", value))),
+                        None => Ok(None),
+                    },
+                    Err(_) => Ok(None),
+                }
+            }
             None => Ok(None),
         })
         .collect::<syn::Result<Vec<_>>>()
@@ -198,7 +206,7 @@ fn impl_builder_build_method(
     vis: &Visibility,
     struct_ident: &Ident,
     fields: &[FieldInfo],
-    func_ident: Option<&Ident>,
+    func: Option<&String>,
 ) -> TokenStream2 {
     let field_tokens = fields.iter().map(|FieldInfo{ident, ty}|
     match field_type(ty) {
@@ -216,10 +224,11 @@ fn impl_builder_build_method(
     });
 
     let instance = format_ident!("{}", "instance");
-    let validator = match func_ident {
-        Some(ident) => {
+    let validator = match func {
+        Some(func) => {
+            let func_ident = format_ident!("{}", func);
             quote!(
-                #ident(&#instance)?;
+                #func_ident(&#instance)?;
             )
         }
         None => quote!(),
@@ -287,82 +296,4 @@ fn field_type(ty: &Type) -> FieldType {
     }
 
     FieldType::Raw
-}
-
-/// 特定の属性の、特定の名前の値を取得する。
-///
-/// # 引数
-///
-/// * `attr` - 属性
-/// * `attr_name` - 取得する属性の名前
-/// * `value_name` - 上記属性内に定義された、値を取得する名前
-///
-/// # 戻り値
-///
-/// 値
-fn inspect_name_value(
-    attr: &Attribute,
-    attr_name: &str,
-    value_name: &str,
-) -> syn::Result<Option<Ident>> {
-    // 属性でない場合
-    if !attr.path().is_ident(attr_name) {
-        return Ok(None);
-    }
-    // builder属性内にある名前と値のリストを取得
-    let name_values: CommaPunctuatedNameValues = attr
-        .parse_args_with(Punctuated::parse_terminated)
-        .map_err(|err| {
-            syn::Error::new_spanned(attr, format!("failed to parse builder attribute: {}", err))
-        })?;
-
-    // builder属性内の名前を検索
-    for name_value in name_values.iter() {
-        if name_value.path.is_ident(value_name) {
-            match &name_value.value {
-                Expr::Lit(expr_lit) => match &expr_lit.lit {
-                    Lit::Str(value) => return Ok(Some(format_ident!("{}", value.value()))),
-                    _ => {
-                        return Err(syn::Error::new_spanned(
-                            attr,
-                            format!("expected `builder({} = \"...\")`", value_name),
-                        ))
-                    }
-                },
-                _ => {
-                    return Err(syn::Error::new_spanned(
-                        attr,
-                        format!("expected `builder({} = \"...\")`", value_name),
-                    ))
-                }
-            }
-        }
-    }
-
-    Ok(None)
-}
-
-/// 識別子に付けられた複数の属性の中から、特定の属性の、特定の名前の値を取得する。
-///
-/// # 引数
-///
-/// * `attrs` - 識別子に付けられた複数の属性
-/// * `attr_name` - 取得する属性の名前
-/// * `value_name` - 上記属性内に定義された、値を取得する名前
-///
-/// # 戻り値
-///
-/// 値
-fn inspect_attr_and_name(
-    attrs: &[Attribute],
-    attr_name: &str,
-    value_name: &str,
-) -> syn::Result<Option<Ident>> {
-    for attr in attrs {
-        if let Some(ident) = inspect_name_value(attr, attr_name, value_name)? {
-            return Ok(Some(ident));
-        }
-    }
-
-    Ok(None)
 }

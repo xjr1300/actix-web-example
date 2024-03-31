@@ -1,11 +1,10 @@
 use std::marker::PhantomData;
 
 use once_cell::sync::Lazy;
-use paste::paste;
 use regex::Regex;
 use uuid::Uuid;
 
-use macros::{DomainPrimitive, PrimitiveDisplay, StringPrimitive};
+use macros::{DomainPrimitive, PrimitiveDisplay, StringPrimitive, TupleOptionalStringPrimitive};
 use validator::Validate;
 
 use crate::common::{DomainError, DomainResult};
@@ -116,58 +115,22 @@ pub struct Address {
     value: String,
 }
 
-/// 固定電話番号の正規表現
-static FIXED_PHONE_NUMBER_EXPRESSION: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r"^0([0-9]-[0-9]{4}|[0-9]{2}-[0-9]{3}|[0-9]{3}-[0-9]{2}|[0-9]{4}-[0-9])-[0-9]{4}$")
-        .unwrap()
-});
-
 /// 固定電話番号
-#[derive(Debug, Clone, Validate, DomainPrimitive, PrimitiveDisplay, StringPrimitive)]
-pub struct FixedPhoneNumber {
-    #[validate(regex(path = "*FIXED_PHONE_NUMBER_EXPRESSION"))]
-    #[value_getter(ret = "ref", rty = "&str")]
-    value: String,
-}
-
-macro_rules! from_string_option {
-    ($ty:ty) => {
-        paste! {
-            pub fn [<to_option_ $ty:snake:lower>](value: Option<String>) -> DomainResult<Option<$ty> > {
-                match value {
-                    Some(value) => Ok(Some($ty::new(value)?)),
-                    None => Ok(None),
-                }
-            }
-        }
-    }
-}
-
-from_string_option!(FixedPhoneNumber);
-
-/// 携帯電話番号の正規表現
-static MOBILE_PHONE_NUMBER_EXPRESSION: Lazy<Regex> =
-    Lazy::new(|| Regex::new(r"^0[789]0-[0-9]{4}-[0-9]{4}$").unwrap());
+#[derive(Debug, Clone, PartialEq, Eq, Hash, TupleOptionalStringPrimitive)]
+#[primitive_validation(
+    regex = r"^0([0-9]-[0-9]{4}|[0-9]{2}-[0-9]{3}|[0-9]{3}-[0-9]{2}|[0-9]{4}-[0-9])-[0-9]{4}$"
+)]
+pub struct FixedPhoneNumber(Option<String>);
 
 /// 携帯電話番号
-#[derive(Debug, Clone, Validate, DomainPrimitive, PrimitiveDisplay, StringPrimitive)]
-pub struct MobilePhoneNumber {
-    #[validate(regex(path = "*MOBILE_PHONE_NUMBER_EXPRESSION"))]
-    #[value_getter(ret = "ref", rty = "&str")]
-    value: String,
-}
-
-from_string_option!(MobilePhoneNumber);
+#[derive(Debug, Clone, PartialEq, Eq, Hash, TupleOptionalStringPrimitive)]
+#[primitive_validation(regex = r"^0[789]0-[0-9]{4}-[0-9]{4}$")]
+pub struct MobilePhoneNumber(Option<String>);
 
 /// 備考
-#[derive(Debug, Clone, Validate, DomainPrimitive, PrimitiveDisplay, StringPrimitive)]
-pub struct Remarks {
-    #[validate(length(min = 1, max = 400))]
-    #[value_getter(ret = "ref", rty = "&str")]
-    value: String,
-}
-
-from_string_option!(Remarks);
+#[derive(Debug, Clone, PartialEq, Eq, Hash, TupleOptionalStringPrimitive)]
+#[primitive_validation(max = 400)]
+pub struct Remarks(Option<String>);
 
 #[cfg(test)]
 mod tests {
@@ -283,8 +246,8 @@ mod tests {
             "01234-5-6789",
         ];
         for expected in candidates {
-            let instance = FixedPhoneNumber::new(expected).unwrap();
-            assert_eq!(expected, instance.value(), "`{}`", expected);
+            let instance = FixedPhoneNumber::try_from_str(expected).unwrap();
+            assert_eq!(expected, instance.value().unwrap(), "`{}`", expected);
         }
     }
 
@@ -317,7 +280,11 @@ mod tests {
             "01234-56-6789",
         ];
         for expected in candidates {
-            assert!(FixedPhoneNumber::new(expected).is_err(), "`{}`", expected);
+            assert!(
+                FixedPhoneNumber::try_from_str(expected).is_err(),
+                "`{}`",
+                expected
+            );
         }
     }
 
@@ -326,8 +293,8 @@ mod tests {
     fn construct_mobile_phone_number_from_valid_strings() {
         let candidates = ["070-1234-5678", "080-1234-5678", "090-1234-5678"];
         for expected in candidates {
-            let instance = MobilePhoneNumber::new(expected).unwrap();
-            assert_eq!(expected, instance.value(), "`{}`", expected);
+            let instance = MobilePhoneNumber::try_from_str(expected).unwrap();
+            assert_eq!(expected, instance.value().unwrap(), "`{}`", expected);
         }
     }
 
@@ -351,7 +318,11 @@ mod tests {
             "090-1234-567a",
         ];
         for expected in candidates {
-            assert!(MobilePhoneNumber::new(expected).is_err(), "`{}`", expected);
+            assert!(
+                MobilePhoneNumber::try_from_str(expected).is_err(),
+                "`{}`",
+                expected
+            );
         }
     }
 }

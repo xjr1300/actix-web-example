@@ -55,13 +55,13 @@ pub struct User {
     address: Address,
     /// 固定電話番号
     #[getter(ret = "ref")]
-    fixed_phone_number: Option<FixedPhoneNumber>,
+    fixed_phone_number: FixedPhoneNumber,
     /// 携帯電話番号
     #[getter(ret = "ref")]
-    mobile_phone_number: Option<MobilePhoneNumber>,
+    mobile_phone_number: MobilePhoneNumber,
     /// 備考
     #[getter(ret = "ref")]
-    remarks: Option<Remarks>,
+    remarks: Remarks,
     /// 最終ログイン日時
     #[getter(ret = "val")]
     last_logged_in_at: Option<OffsetDateTime>,
@@ -97,9 +97,9 @@ impl User {
         given_name: GivenName,
         postal_code: PostalCode,
         address: Address,
-        fixed_phone_number: Option<FixedPhoneNumber>,
-        mobile_phone_number: Option<MobilePhoneNumber>,
-        remarks: Option<Remarks>,
+        fixed_phone_number: FixedPhoneNumber,
+        mobile_phone_number: MobilePhoneNumber,
+        remarks: Remarks,
     ) -> DomainResult<Self> {
         // 固定電話番号または携帯電話番号を指定していない場合はエラー
         if fixed_phone_number.is_none() && mobile_phone_number.is_none() {
@@ -153,13 +153,19 @@ mod tests {
         let address = Address::new("foo bar baz qux").unwrap();
         let phone_number_pairs = [
             (
-                Some(FixedPhoneNumber::new("03-1234-5678").unwrap()),
-                Some(MobilePhoneNumber::new("090-1234-5678").unwrap()),
+                FixedPhoneNumber::try_from("03-1234-5678").unwrap(),
+                MobilePhoneNumber::try_from("090-1234-5678").unwrap(),
             ),
-            (Some(FixedPhoneNumber::new("03-1234-5678").unwrap()), None),
-            (None, Some(MobilePhoneNumber::new("090-1234-5678").unwrap())),
+            (
+                FixedPhoneNumber::try_from("03-1234-5678").unwrap(),
+                MobilePhoneNumber::none(),
+            ),
+            (
+                FixedPhoneNumber::none(),
+                MobilePhoneNumber::try_from("090-1234-5678").unwrap(),
+            ),
         ];
-        let remarks = Some(Remarks::new(String::from("remarks")).unwrap());
+        let remarks = Remarks::try_from("remarks").unwrap();
         for (fixed_phone_number, mobile_phone_number) in phone_number_pairs {
             assert!(
                 User::new(
@@ -206,9 +212,9 @@ mod tests {
             given_name,
             postal_code,
             address,
-            None,
-            None,
-            None,
+            FixedPhoneNumber::none(),
+            MobilePhoneNumber::none(),
+            Remarks::none(),
         )
         .is_err());
     }
