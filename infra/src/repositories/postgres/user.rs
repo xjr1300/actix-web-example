@@ -72,8 +72,6 @@ impl From<UserRow> for User {
 
 /// ユーザーをデータベースに登録するクエリを生成する。
 ///
-/// FIXME: 実装できたが呼び出しする方法がわからない。
-///
 /// # 引数
 ///
 /// * `user` - データベースに登録するユーザー
@@ -82,7 +80,7 @@ impl From<UserRow> for User {
 ///
 /// ユーザーをデータベースに登録するクエリ
 #[allow(dead_code)]
-fn insert_user_query(
+pub fn insert_user_query(
     user: &User,
 ) -> sqlx::query::QueryAs<'_, sqlx::Postgres, UserRow, sqlx::postgres::PgArguments> {
     sqlx::query_as::<Postgres, UserRow>(
@@ -93,7 +91,7 @@ fn insert_user_query(
             remarks, last_logged_in_at, created_at, updated_at
         )
         VALUES (
-            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, STATEMENT_TIMESTAMP(), STATEMENT_TIMESTAMP()
+            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NULL, STATEMENT_TIMESTAMP(), STATEMENT_TIMESTAMP()
         )
         RETURNING *
         "#,
