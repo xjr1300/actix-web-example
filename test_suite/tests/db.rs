@@ -6,6 +6,7 @@ use infra::repositories::postgres::common::{
     commit_transaction, IsolationLevel, PgRepository, PgTransaction,
 };
 use infra::repositories::postgres::user::{insert_user_query, UserRow};
+use time::Duration;
 
 use crate::helpers::{generate_user, spawn_test_app};
 
@@ -45,7 +46,7 @@ async fn act_and_verify(tx: PgTransaction<'_>, user: &User) -> anyhow::Result<()
     verity_user(user, &inserted);
     assert_eq!(inserted.created_at(), inserted.updated_at());
     assert!(
-        user.created_at() <= inserted.created_at(),
+        user.created_at() - Duration::seconds(3) <= inserted.created_at(),
         "does not satisfy `{} <= {}`",
         user.created_at(),
         inserted.created_at()

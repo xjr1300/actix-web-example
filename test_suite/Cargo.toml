@@ -18,6 +18,12 @@ reqwest = "0.12.2"
 secrecy = { version = "0.8.0", features = ["alloc", "serde"] }
 serde_json = { version = "1.0.114", features = ["std"] }
 server = { path = "../server" }
+time = { version = "0.3.34", features = [
+    "parsing",
+    "formatting",
+    "serde",
+    "macros",
+] }
 tokio = { version = "1.36.0", features = ["rt-multi-thread", "macros"] }
 uuid = { version = "1.8.0", features = ["v4", "serde"] }
 
