@@ -87,22 +87,18 @@ pub(crate) fn impl_tuple_optional_string_primitive(
 fn impl_try_from_str_method(name: &str, validation: &Validation) -> TokenStream2 {
     let mut validation_tokens: Vec<TokenStream2> = vec![];
     if let Some(min) = validation.min {
-        validation_tokens.push(
-            quote! {
-                if value.len() < #min {
-                    return Err(DomainError::Validation(format!("the string length of {} must be at least {} characters", #name, #min).into()));
-                }
+        validation_tokens.push(quote! {
+            if value.len() < #min {
+                return Err(DomainError::Validation(format!("the string length of {} must be at least {} characters", #name, #min).into()));
             }
-        );
+        });
     }
     if let Some(max) = validation.max {
-        validation_tokens.push(
-            quote! {
-                if #max < value.len() {
-                    return Err(DomainError::Validation(format!("the string length of {} must be {} characters or less", #name, #max)into()));
-                }
+        validation_tokens.push(quote! {
+            if #max < value.len() {
+                return Err(DomainError::Validation(format!("the string length of {} must be {} characters or less", #name, #max).into()));
             }
-        );
+        });
     }
     if let Some(regex) = &validation.regex {
         validation_tokens.push(quote! {
@@ -176,7 +172,7 @@ fn retrieve_primitive_validation_value(input: &DeriveInput) -> syn::Result<Valid
     // maxの値を取得
     if let Some(values) = name_values.get(&format_ident!("max")) {
         if let Lit::Int(n) = &values[0] {
-            result.min = Some(n.base10_parse::<usize>()?);
+            result.max = Some(n.base10_parse::<usize>()?);
         }
     }
 
