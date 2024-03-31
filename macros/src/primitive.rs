@@ -91,8 +91,8 @@ pub(crate) fn impl_primitive_display(input: DeriveInput) -> syn::Result<TokenStr
     }
 
     Ok(quote! {
-        impl #impl_generics std::fmt::Display for #ident #ty_generics #where_clause{
-            fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        impl #impl_generics ::std::fmt::Display for #ident #ty_generics #where_clause{
+            fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
                 write!(f, "{}", self.value)
             }
         }
@@ -249,14 +249,14 @@ pub(crate) fn impl_string_primitive(input: DeriveInput) -> syn::Result<TokenStre
 
     Ok(quote! {
         impl #impl_generics #ident #ty_generics #where_clause {
-            pub fn new<T: std::string::ToString>(value: T) -> DomainResult<Self> {
+            pub fn new<T: ::std::string::ToString>(value: T) -> DomainResult<Self> {
                 let value = value.to_string().trim().to_string();
                 let instance = Self {
                     value,
                 };
                 match instance.validate() {
-                    Ok(_) => Ok(instance),
-                    Err(e) => Err(DomainError::DomainRule(format!("value is invalid: {e}").into())),
+                    ::core::result::Result::Ok(_) => ::core::result::Result::Ok(instance),
+                    ::core::result::Result::Err(e) => ::core::result::Result::Err(DomainError::DomainRule(format!("value is invalid: {e}").into())),
                 }
             }
         }

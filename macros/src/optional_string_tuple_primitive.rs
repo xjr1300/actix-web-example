@@ -22,62 +22,62 @@ pub(crate) fn impl_tuple_optional_string_primitive(
         impl #impl_generics #ident #ty_generics #where_clause {
             # try_from_str
 
-            pub fn value(&self) -> std::option::Option<&str> {
+            pub fn value(&self) -> ::core::option::Option<&::std::primitive::str> {
                 self.0.as_deref()
             }
 
             pub fn none() -> Self {
-                Self(std::option::Option::None)
+                Self(::core::option::Option::None)
             }
 
-            pub fn is_none(&self) -> std::primitive::bool {
+            pub fn is_none(&self) -> ::core::primitive::bool {
                 self.0.is_none()
             }
         }
 
-        impl std::fmt::Display for #ident {
-            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        impl ::core::fmt::Display for #ident {
+            fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
                 match &self.0 {
-                    std::option::Option::Some(value) => write!(f, "{}", value),
-                    std::option::Option::None => write!(f, "None"),
+                    ::core::option::Option::Some(value) => ::std::write!(f, "{}", value),
+                    ::core::option::Option::None => ::std::write!(f, "None"),
                 }
             }
         }
 
-        impl std::convert::TryFrom<std::string::String> for #ident {
+        impl ::core::convert::TryFrom<::std::string::String> for #ident {
             type Error = DomainError;
 
-            fn try_from(value: std::string::String) -> std::result::Result<Self, Self::Error> {
+            fn try_from(value: ::std::string::String) -> ::core::result::Result<Self, Self::Error> {
                 Self::try_from_str(&value)
             }
         }
 
-        impl std::convert::TryFrom<std::option::Option<std::string::String>> for #ident {
+        impl ::core::convert::TryFrom<::core::option::Option<::std::string::String>> for #ident {
             type Error = DomainError;
 
-            fn try_from(value: Option<std::string::String>) -> std::result::Result<Self, Self::Error> {
+            fn try_from(value: ::core::option::Option<::std::string::String>) -> ::core::result::Result<Self, Self::Error> {
                 match value {
-                    std::option::Option::Some(value) => Self::try_from_str(&value),
-                    std::option::Option::None => Ok(Self(None)),
+                    ::core::option::Option::Some(value) => Self::try_from_str(&value),
+                    ::core::option::Option::None => Ok(Self(::core::option::Option::None)),
                 }
             }
         }
 
-        impl std::convert::TryFrom<&str> for #ident {
+        impl ::core::convert::TryFrom<&::std::primitive::str> for #ident {
             type Error = DomainError;
 
-            fn try_from(value: &str) -> std::result::Result<Self, Self::Error> {
+            fn try_from(value: &::std::primitive::str) -> ::core::result::Result<Self, Self::Error> {
                 Self::try_from_str(value)
             }
         }
 
-        impl std::convert::TryFrom<Option<&str>> for #ident {
+        impl ::core::convert::TryFrom<::core::option::Option<&::std::primitive::str>> for #ident {
             type Error = DomainError;
 
-            fn try_from(value: std::option::Option<&str>) -> std::result::Result<Self, Self::Error> {
+            fn try_from(value: ::core::option::Option<&::std::primitive::str>) -> ::core::result::Result<Self, Self::Error> {
                 match value {
-                    Some(value) => Self::try_from_str(value),
-                    None => Ok(Self(None)),
+                    ::core::option::Option::Some(value) => Self::try_from_str(value),
+                    ::core::option::Option::None => ::core::result::Result::Ok(Self(None)),
                 }
             }
         }
@@ -89,14 +89,14 @@ fn impl_try_from_str_method(name: &str, validation: &Validation) -> TokenStream2
     if let Some(min) = validation.min {
         validation_tokens.push(quote! {
             if value.len() < #min {
-                return Err(DomainError::Validation(format!("the string length of {} must be at least {} characters", #name, #min).into()));
+                return ::core::result::Result::Err(DomainError::Validation(::std::format!("the string length of {} must be at least {} characters", #name, #min).into()));
             }
         });
     }
     if let Some(max) = validation.max {
         validation_tokens.push(quote! {
             if #max < value.len() {
-                return Err(DomainError::Validation(format!("the string length of {} must be {} characters or less", #name, #max).into()));
+                return ::core::result::Result::Err(DomainError::Validation(::std::format!("the string length of {} must be {} characters or less", #name, #max).into()));
             }
         });
     }
@@ -104,19 +104,19 @@ fn impl_try_from_str_method(name: &str, validation: &Validation) -> TokenStream2
         validation_tokens.push(quote! {
             let re = regex::Regex::new(#regex).unwrap();
             if !re.is_match(value) {
-                return Err(DomainError::Validation(
-                    format!("{} must match the regular expression", #name).into(),
+                return ::core::result::Result::Err(DomainError::Validation(
+                    ::std::format!("{} must match the regular expression", #name).into(),
                 ));
             }
         });
     }
 
     quote! {
-        pub fn try_from_str(value: &str) -> DomainResult<Self> {
+        pub fn try_from_str(value: &::std::primitive::str) -> DomainResult<Self> {
             let value = value.trim();
             #(#validation_tokens)*
 
-            Ok(Self(Some(value.to_owned())))
+            ::core::result::Result::Ok(Self(::core::option::Option::Some(value.to_owned())))
         }
     }
 }
