@@ -1,14 +1,13 @@
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote};
-use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
 use syn::{
-    AngleBracketedGenericArguments, Attribute, Data, DataStruct, DeriveInput, Expr, Fields,
-    FieldsNamed, GenericArgument, Ident, Lit, Path, PathArguments, PathSegment, Type, TypePath,
-    Visibility,
+    AngleBracketedGenericArguments, Attribute, Data, DataStruct, DeriveInput, Fields, FieldsNamed,
+    GenericArgument, Ident, Lit, Path, PathArguments, PathSegment, Type, TypePath, Visibility,
 };
 
-use crate::types::{CommaPunctuatedFields, CommaPunctuatedNameValues};
+use crate::types::CommaPunctuatedFields;
+use crate::utils::retrieve_name_values_list;
 
 pub(crate) fn impl_builder(input: DeriveInput) -> syn::Result<TokenStream2> {
     if let Data::Struct(DataStruct {
@@ -31,9 +30,9 @@ pub(crate) fn impl_builder(input: DeriveInput) -> syn::Result<TokenStream2> {
         // ビルダーのsetterメソッドを実装
         let builder_setter_methods = impl_builder_setter_methods(&vis, &fields, &each_values);
         // ビルダーの`build`メソッドを実装
-        let func_ident = inspect_attr_and_name(&input.attrs, "builder_validation", "func")?;
+        let func_ident = retrieve_builder_validation_func(&input.attrs)?;
         let builder_build_method =
-            impl_builder_build_method(&vis, &struct_ident, &fields, func_ident.as_ref());
+            impl_builder_build_method(&vis, &struct_ident, &fields, func_ident);
 
         Ok(quote! {
             #builder_struct
@@ -48,6 +47,117 @@ pub(crate) fn impl_builder(input: DeriveInput) -> syn::Result<TokenStream2> {
         })
     } else {
         Err(syn::Error::new(input.span(), "only struct supported"))
+    }
+}
+
+/// ビルダーが構築するプリミティブを検証する関数の識別子を取得する。
+///
+/// ```text
+/// #[derive(Builder)]
+/// #[builder_validation(func = "func_name")
+/// struct Foo { ... }
+/// ```
+/// 上記`func_name`を取得する。
+fn retrieve_builder_validation_func(attrs: &[Attribute]) -> syn::Result<Option<Ident>> {
+    let name_values_list = retrieve_name_values_list(attrs, "builder_validation")?;
+
+    // builder_validation属性が指定されていない場合は検証しない
+    if name_values_list.is_empty() {
+        return Ok(None);
+    }
+    // builder_validation属性が2つ以上指定されている場合はエラー
+    if name_values_list.len() > 1 {
+        return Err(syn::Error::new(
+            attrs[0].span(),
+            "only one builder_validation can be specified",
+        ));
+    }
+    // builder_validation属性にfuncのみ指定されているか確認
+    let name_values = &name_values_list[0];
+    if 1 < name_values.keys().len() {
+        return Err(syn::Error::new(
+            attrs[0].span(),
+            "builder_validation must have only one `func` name value",
+        ));
+    }
+
+    // builder_validation属性にfuncが複数指定されている場合はエラー
+    let func_list = name_values
+        .get(&format_ident!("func"))
+        .ok_or(syn::Error::new(
+            attrs[0].span(),
+            "builder_validation must have only one `func` name value",
+        ))?;
+    if 1 < func_list.len() {
+        return Err(syn::Error::new(
+            attrs[0].span(),
+            "only one `func` can be specified",
+        ));
+    }
+
+    match &func_list[0] {
+        Lit::Str(s) => Ok(Some(format_ident!("{}", s.value()))),
+        _ => Err(syn::Error::new(
+            attrs[0].span(),
+            "func must have a function name string",
+        )),
+    }
+}
+
+/// ビルダーを構築する構造体のフィールドに付与された`builder`属性の`each`を取得する。
+///
+/// ```text
+/// #[derive(Builder)]
+/// struct Foo {
+///     #[builder(each = "each_name")]
+///     a: String,
+/// }
+/// ```
+///
+/// 上記`each_name`を取得する。
+fn retrieve_builder_each(attrs: &[Attribute]) -> syn::Result<Option<Ident>> {
+    let name_values_list = retrieve_name_values_list(attrs, "builder")?;
+
+    // builder属性が指定されていない場合
+    if name_values_list.is_empty() {
+        return Ok(None);
+    }
+    // builder属性が2つ以上指定されている場合はエラー
+    if name_values_list.len() > 1 {
+        return Err(syn::Error::new(
+            attrs[0].span(),
+            "only one builder can be specified",
+        ));
+    }
+    // builder属性にeachのみ指定されているか確認
+    let name_values = &name_values_list[0];
+    if 1 < name_values.keys().len() {
+        return Err(syn::Error::new(
+            attrs[0].span(),
+            "builder must have only one `each` name value",
+        ));
+    }
+
+    // builder属性にeachが複数指定されている場合はエラー
+    let each_list = name_values
+        .get(&format_ident!("each"))
+        .ok_or(syn::Error::new(
+            attrs[0].span(),
+            "builder must have only one `each` name value",
+        ))?;
+    if 1 < each_list.len() {
+        return Err(syn::Error::new(
+            attrs[0].span(),
+            "only one each can be specified",
+        ));
+    }
+
+    match &each_list[0] {
+        Lit::Str(s) => Ok(Some(format_ident!("{}", s.value()))),
+        _ => Err(syn::Error::new(
+            attrs[0].span(),
+            "each must have a method name string",
+        )),
     }
 }
 
@@ -133,10 +243,7 @@ fn impl_builder_new_method(vis: &Visibility, fields: &[FieldInfo]) -> TokenStrea
 fn retrieve_each_name_value(fields: &CommaPunctuatedFields) -> syn::Result<Vec<Option<Ident>>> {
     fields
         .iter()
-        .map(|f| match f.attrs.first() {
-            Some(attr) => inspect_name_value(attr, "builder", "each"),
-            None => Ok(None),
-        })
+        .map(|f| retrieve_builder_each(&f.attrs))
         .collect::<syn::Result<Vec<_>>>()
 }
 
@@ -198,7 +305,7 @@ fn impl_builder_build_method(
     vis: &Visibility,
     struct_ident: &Ident,
     fields: &[FieldInfo],
-    func_ident: Option<&Ident>,
+    func: Option<Ident>,
 ) -> TokenStream2 {
     let field_tokens = fields.iter().map(|FieldInfo{ident, ty}|
     match field_type(ty) {
@@ -216,10 +323,11 @@ fn impl_builder_build_method(
     });
 
     let instance = format_ident!("{}", "instance");
-    let validator = match func_ident {
-        Some(ident) => {
+    let validator = match func {
+        Some(func) => {
+            let func_ident = format_ident!("{}", func);
             quote!(
-                #ident(&#instance)?;
+                #func_ident(&#instance)?;
             )
         }
         None => quote!(),
@@ -287,82 +395,4 @@ fn field_type(ty: &Type) -> FieldType {
     }
 
     FieldType::Raw
-}
-
-/// 特定の属性の、特定の名前の値を取得する。
-///
-/// # 引数
-///
-/// * `attr` - 属性
-/// * `attr_name` - 取得する属性の名前
-/// * `value_name` - 上記属性内に定義された、値を取得する名前
-///
-/// # 戻り値
-///
-/// 値
-fn inspect_name_value(
-    attr: &Attribute,
-    attr_name: &str,
-    value_name: &str,
-) -> syn::Result<Option<Ident>> {
-    // 属性でない場合
-    if !attr.path().is_ident(attr_name) {
-        return Ok(None);
-    }
-    // builder属性内にある名前と値のリストを取得
-    let name_values: CommaPunctuatedNameValues = attr
-        .parse_args_with(Punctuated::parse_terminated)
-        .map_err(|err| {
-            syn::Error::new_spanned(attr, format!("failed to parse builder attribute: {}", err))
-        })?;
-
-    // builder属性内の名前を検索
-    for name_value in name_values.iter() {
-        if name_value.path.is_ident(value_name) {
-            match &name_value.value {
-                Expr::Lit(expr_lit) => match &expr_lit.lit {
-                    Lit::Str(value) => return Ok(Some(format_ident!("{}", value.value()))),
-                    _ => {
-                        return Err(syn::Error::new_spanned(
-                            attr,
-                            format!("expected `builder({} = \"...\")`", value_name),
-                        ))
-                    }
-                },
-                _ => {
-                    return Err(syn::Error::new_spanned(
-                        attr,
-                        format!("expected `builder({} = \"...\")`", value_name),
-                    ))
-                }
-            }
-        }
-    }
-
-    Ok(None)
-}
-
-/// 識別子に付けられた複数の属性の中から、特定の属性の、特定の名前の値を取得する。
-///
-/// # 引数
-///
-/// * `attrs` - 識別子に付けられた複数の属性
-/// * `attr_name` - 取得する属性の名前
-/// * `value_name` - 上記属性内に定義された、値を取得する名前
-///
-/// # 戻り値
-///
-/// 値
-fn inspect_attr_and_name(
-    attrs: &[Attribute],
-    attr_name: &str,
-    value_name: &str,
-) -> syn::Result<Option<Ident>> {
-    for attr in attrs {
-        if let Some(ident) = inspect_name_value(attr, attr_name, value_name)? {
-            return Ok(Some(ident));
-        }
-    }
-
-    Ok(None)
 }

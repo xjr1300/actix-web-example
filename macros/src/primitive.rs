@@ -4,11 +4,10 @@ use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
 use syn::punctuated::Punctuated;
 use syn::spanned::Spanned as _;
-use syn::{Data, DataStruct, DeriveInput, Expr, Field, Fields, FieldsNamed, Ident, Lit, LitStr};
+use syn::{DataStruct, DeriveInput, Expr, Field, Fields, FieldsNamed, Ident, Lit, LitStr};
 
 use crate::types::CommaPunctuatedNameValues;
-
-const MACRO_NAME: &str = "DomainPrimitive";
+use crate::utils::is_data_struct;
 
 pub(crate) fn impl_domain_primitive(input: DeriveInput) -> syn::Result<TokenStream2> {
     let vis = &input.vis;
@@ -17,13 +16,13 @@ pub(crate) fn impl_domain_primitive(input: DeriveInput) -> syn::Result<TokenStre
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
 
     // フィールドを持つ構造体であることを確認
-    let data_struct = is_data_struct(&input, MACRO_NAME)?;
+    let data_struct = is_data_struct(&input, "DomainPrimitive")?;
 
     // 名前付きフィールドを取得して、タプル構造体、またはユニット構造体でないことを確認
-    let fields = retrieve_named_fields(ident, data_struct, MACRO_NAME)?;
+    let fields = retrieve_named_fields(ident, data_struct, "DomainPrimitive")?;
 
     // `value`フィールドを取得
-    let field = retrieve_value_field(ident, fields, MACRO_NAME)?;
+    let field = retrieve_value_field(ident, fields, "DomainPrimitive")?;
     let ty = &field.ty;
 
     // `value_getter`属性に定義された名前と値のリストを取得
@@ -78,10 +77,10 @@ pub(crate) fn impl_primitive_display(input: DeriveInput) -> syn::Result<TokenStr
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
 
     // フィールドを持つ構造体であることを確認
-    let data_struct = is_data_struct(&input, MACRO_NAME)?;
+    let data_struct = is_data_struct(&input, "PrimitiveDisplay")?;
 
     // 名前付きフィールドを取得して、タプル構造体、またはユニット構造体でないことを確認
-    let fields = retrieve_named_fields(ident, data_struct, MACRO_NAME)?;
+    let fields = retrieve_named_fields(ident, data_struct, "PrimitiveDisplay")?;
 
     // 構造体が`value`フィールドを持つか確認
     if !has_value_field(fields) {
@@ -98,16 +97,6 @@ pub(crate) fn impl_primitive_display(input: DeriveInput) -> syn::Result<TokenStr
             }
         }
     })
-}
-/// フィールドを持つ構造体であることを確認する。
-fn is_data_struct<'a>(input: &'a DeriveInput, macro_name: &str) -> syn::Result<&'a DataStruct> {
-    match &input.data {
-        Data::Struct(data_struct) => Ok(data_struct),
-        _ => Err(syn::Error::new(
-            input.ident.span(),
-            format!("{} is expected a struct", macro_name),
-        )),
-    }
 }
 
 /// 構造体の名前付きフィールドを取得する。
@@ -244,10 +233,10 @@ pub(crate) fn impl_string_primitive(input: DeriveInput) -> syn::Result<TokenStre
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
 
     // フィールドを持つ構造体であることを確認
-    let data_struct = is_data_struct(&input, MACRO_NAME)?;
+    let data_struct = is_data_struct(&input, "StringPrimitive")?;
 
     // 名前付きフィールドを取得して、タプル構造体、またはユニット構造体でないことを確認
-    let fields = retrieve_named_fields(ident, data_struct, MACRO_NAME)?;
+    let fields = retrieve_named_fields(ident, data_struct, "StringPrimitive")?;
 
     // 構造体が`value`フィールドを持つか確認
     // FIXME: `value`フィールドが`String`型であることを確認する実装
@@ -260,7 +249,7 @@ pub(crate) fn impl_string_primitive(input: DeriveInput) -> syn::Result<TokenStre
 
     Ok(quote! {
         impl #impl_generics #ident #ty_generics #where_clause {
-            pub fn new<T: std::string::ToString>(value: T) -> crate::common::DomainResult<Self> {
+            pub fn new<T: std::string::ToString>(value: T) -> DomainResult<Self> {
                 let value = value.to_string().trim().to_string();
                 let instance = Self {
                     value,
