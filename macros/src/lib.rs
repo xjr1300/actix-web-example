@@ -6,6 +6,8 @@ mod utils;
 
 mod primitive;
 use primitive::{impl_domain_primitive, impl_primitive_display, impl_string_primitive};
+mod optional_string_tuple_primitive;
+use optional_string_tuple_primitive::impl_tuple_optional_string_primitive;
 mod getter;
 use getter::impl_getter;
 mod builder;
@@ -54,6 +56,31 @@ pub fn derive_string_primitive(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
 
     match impl_string_primitive(input) {
+        Ok(token_stream) => TokenStream::from(token_stream),
+        Err(err) => TokenStream::from(err.into_compile_error()),
+    }
+}
+
+/// `TupleOptionalStringPrimitive`導出マクロ
+///
+/// `Option<String>`を持つタプル構造体のメソッドを実装する。
+///
+/// ```text
+/// /// 携帯電話番号
+/// #[derive(Debug, Clone, PartialEq, Eq, Hash, TupleOptionalStringPrimitive)]
+/// #[primitive_validation(regex = r"^0[789]0-[0-9]{4}-[0-9]{4}$")]
+/// pub struct MobilePhoneNumber(Option<String>);
+///
+/// /// 備考
+/// #[derive(Debug, Clone, PartialEq, Eq, Hash, TupleOptionalStringPrimitive)]
+/// #[primitive_validation(min = 10, max = 400)]
+/// pub struct Remarks(Option<String>);
+/// ```
+#[proc_macro_derive(TupleOptionalStringPrimitive, attributes(primitive_validation))]
+pub fn derive_tuple_optional_string_primitive(input: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(input as DeriveInput);
+
+    match impl_tuple_optional_string_primitive(input) {
         Ok(token_stream) => TokenStream::from(token_stream),
         Err(err) => TokenStream::from(err.into_compile_error()),
     }

@@ -6,16 +6,11 @@ use uuid::Uuid;
 
 use domain::common::{DomainError, DomainResult};
 use domain::models::passwords::PhcPassword;
-use domain::models::primitives::{Address, EmailAddress, FamilyName, GivenName, PostalCode};
+use domain::models::primitives::*;
 use domain::models::user::{User, UserBuilder, UserId};
 use domain::repositories::user::UserRepository;
 
 use crate::repositories::postgres::common::PgRepository;
-use crate::{
-    optional_fixed_phone_number_primitive, optional_fixed_phone_number_value,
-    optional_mobile_phone_number_primitive, optional_mobile_phone_number_value,
-    optional_remarks_primitive, optional_remarks_value,
-};
 
 /// PostgreSQLユーザー・リポジトリ
 pub type PgUserRepository = PgRepository<User>;
@@ -50,6 +45,11 @@ pub struct UserRow {
 
 impl From<UserRow> for User {
     fn from(row: UserRow) -> Self {
+        // データベースから取得した値を変換するためアンラップ
+        let fixed_phone_number = FixedPhoneNumber::try_from(row.fixed_phone_number).unwrap();
+        let mobile_phone_number = MobilePhoneNumber::try_from(row.mobile_phone_number).unwrap();
+        let remarks = Remarks::try_from(row.remarks).unwrap();
+
         UserBuilder::new()
             .id(UserId::new(row.id))
             .email(EmailAddress::new(row.email).unwrap())
@@ -59,13 +59,9 @@ impl From<UserRow> for User {
             .given_name(GivenName::new(row.given_name).unwrap())
             .postal_code(PostalCode::new(row.postal_code).unwrap())
             .address(Address::new(row.address).unwrap())
-            .fixed_phone_number(optional_fixed_phone_number_primitive(
-                row.fixed_phone_number,
-            ))
-            .mobile_phone_number(optional_mobile_phone_number_primitive(
-                row.mobile_phone_number,
-            ))
-            .remarks(optional_remarks_primitive(row.remarks))
+            .fixed_phone_number(fixed_phone_number)
+            .mobile_phone_number(mobile_phone_number)
+            .remarks(remarks)
             .last_logged_in_at(row.last_logged_in_at)
             .created_at(row.created_at)
             .updated_at(row.updated_at)
@@ -110,9 +106,7 @@ fn insert_user_query(
     .bind(user.given_name().value())
     .bind(user.postal_code().value())
     .bind(user.address().value())
-    .bind(optional_fixed_phone_number_value(user.fixed_phone_number()))
-    .bind(optional_mobile_phone_number_value(
-        user.mobile_phone_number(),
-    ))
-    .bind(optional_remarks_value(user.remarks()))
+    .bind(user.fixed_phone_number().value())
+    .bind(user.mobile_phone_number().value())
+    .bind(user.remarks().value())
 }

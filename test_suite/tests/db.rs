@@ -6,9 +6,6 @@ use infra::repositories::postgres::common::{
     commit_transaction, IsolationLevel, PgRepository, PgTransaction,
 };
 use infra::repositories::postgres::user::UserRow;
-use infra::{
-    optional_fixed_phone_number_value, optional_mobile_phone_number_value, optional_remarks_value,
-};
 
 use crate::helpers::{generate_user, spawn_test_app};
 
@@ -47,6 +44,7 @@ async fn act_and_verify(tx: PgTransaction<'_>, user: &User) -> anyhow::Result<()
     // 検証
     verity_user(user, &inserted);
     assert_eq!(inserted.created_at(), inserted.updated_at());
+    assert!(user.created_at() <= inserted.created_at());
 
     Ok(())
 }
@@ -76,9 +74,9 @@ async fn insert_user_to_database<'c>(
         user.given_name().value(),
         user.postal_code().value(),
         user.address().value(),
-        optional_fixed_phone_number_value(user.fixed_phone_number()),
-        optional_mobile_phone_number_value(user.mobile_phone_number()),
-        optional_remarks_value(user.remarks())
+        user.fixed_phone_number().value(),
+        user.mobile_phone_number().value(),
+        user.remarks().value()
     )
     .fetch_one(&mut *tx)
     .await?;
@@ -105,17 +103,8 @@ fn verity_user(left: &User, right: &User) {
     verify_primitive!(left, right, given_name);
     verify_primitive!(left, right, postal_code);
     verify_primitive!(left, right, address);
-    assert_eq!(
-        optional_fixed_phone_number_value(left.fixed_phone_number()),
-        optional_fixed_phone_number_value(right.fixed_phone_number()),
-    );
-    assert_eq!(
-        optional_mobile_phone_number_value(left.mobile_phone_number()),
-        optional_mobile_phone_number_value(right.mobile_phone_number()),
-    );
-    assert_eq!(
-        optional_remarks_value(left.remarks()),
-        optional_remarks_value(right.remarks()),
-    );
+    verify_primitive!(left, right, fixed_phone_number);
+    verify_primitive!(left, right, mobile_phone_number);
+    verify_primitive!(left, right, remarks);
     assert_eq!(left.last_logged_in_at(), right.last_logged_in_at());
 }

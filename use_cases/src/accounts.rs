@@ -25,11 +25,11 @@ pub struct SignupUser {
     address: Address,
     /// 固定電話番号
     #[getter(ret = "ref")]
-    fixed_phone_number: Option<FixedPhoneNumber>,
+    fixed_phone_number: FixedPhoneNumber,
     /// 携帯電話番号
     #[getter(ret = "ref")]
-    mobile_phone_number: Option<MobilePhoneNumber>,
+    mobile_phone_number: MobilePhoneNumber,
     /// 備考
     #[getter(ret = "ref")]
-    remarks: Option<Remarks>,
+    remarks: Remarks,
 }

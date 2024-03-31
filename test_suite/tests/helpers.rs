@@ -132,15 +132,15 @@ pub fn generate_address() -> Address {
 }
 
 pub fn generate_fixed_phone_number() -> FixedPhoneNumber {
-    FixedPhoneNumber::new("03-3433-5111").unwrap()
+    FixedPhoneNumber::try_from("03-3433-5111").unwrap()
 }
 
 pub fn generate_mobile_phone_number() -> MobilePhoneNumber {
-    MobilePhoneNumber::new("090-1234-5678").unwrap()
+    MobilePhoneNumber::try_from("090-1234-5678").unwrap()
 }
 
 pub fn generate_remarks() -> Remarks {
-    Remarks::new("すもももももももものうち。もももすももももものうち。").unwrap()
+    Remarks::try_from("すもももももももものうち。もももすももももものうち。").unwrap()
 }
 
 pub fn generate_user(id: UserId, email: EmailAddress) -> User {
@@ -154,9 +154,9 @@ pub fn generate_user(id: UserId, email: EmailAddress) -> User {
         .given_name(generate_given_name())
         .postal_code(generate_postal_code())
         .address(generate_address())
-        .fixed_phone_number(Some(generate_fixed_phone_number()))
-        .mobile_phone_number(Some(generate_mobile_phone_number()))
-        .remarks(Some(generate_remarks()))
+        .fixed_phone_number(generate_fixed_phone_number())
+        .mobile_phone_number(generate_mobile_phone_number())
+        .remarks(generate_remarks())
         .created_at(dt)
         .updated_at(dt)
         .build()
