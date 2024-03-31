@@ -30,7 +30,7 @@ impl<'a, T> TryFrom<&'a str> for EntityId<T> {
                 _phantom: PhantomData,
             }),
             Err(_) => Err(DomainError::Validation(
-                "could not recognize as UUID v4 format string".into(),
+                "文字列の形式がUUIDv4形式でありません。".into(),
             )),
         }
     }
