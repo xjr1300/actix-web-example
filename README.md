@@ -93,6 +93,18 @@ fn test_sync() {
 }
 ```
 
+## クレートの脆弱性調査
+
+```sh
+# インストール
+cargo install cargo-audit --features=fix
+# 脆弱性調査
+cargo audit
+# [experimental] 脆弱性のあるクレートのアップデート
+cargo audit fix
+cargo audit fix --dry-run
+```
+
 ## テーブルの制約名の形式
 
 | 制約の種類                 | 制約名の形式                                           | 備考          |
