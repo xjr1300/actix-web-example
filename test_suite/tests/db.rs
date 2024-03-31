@@ -5,7 +5,7 @@ use domain::models::user::{User, UserId};
 use infra::repositories::postgres::common::{
     commit_transaction, IsolationLevel, PgRepository, PgTransaction,
 };
-use infra::repositories::postgres::user::UserRow;
+use infra::repositories::postgres::user::{insert_user_query, UserRow};
 
 use crate::helpers::{generate_user, spawn_test_app};
 
@@ -44,7 +44,12 @@ async fn act_and_verify(tx: PgTransaction<'_>, user: &User) -> anyhow::Result<()
     // 検証
     verity_user(user, &inserted);
     assert_eq!(inserted.created_at(), inserted.updated_at());
-    assert!(user.created_at() <= inserted.created_at());
+    assert!(
+        user.created_at() <= inserted.created_at(),
+        "does not satisfy `{} <= {}`",
+        user.created_at(),
+        inserted.created_at()
+    );
 
     Ok(())
 }
@@ -53,33 +58,7 @@ async fn insert_user_to_database<'c>(
     mut tx: PgTransaction<'c>,
     user: &User,
 ) -> anyhow::Result<User> {
-    let user_row = sqlx::query_as!(
-        UserRow,
-        r#"
-        INSERT INTO users (
-            id, email, password, active, family_name, given_name,
-            postal_code, address, fixed_phone_number, mobile_phone_number,
-            remarks, last_logged_in_at, created_at, updated_at
-        )
-        VALUES (
-            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NULL, STATEMENT_TIMESTAMP(), STATEMENT_TIMESTAMP()
-        )
-        RETURNING *
-        "#,
-        user.id().value(),
-        user.email().value(),
-        user.password().value().expose_secret(),
-        user.active(),
-        user.family_name().value(),
-        user.given_name().value(),
-        user.postal_code().value(),
-        user.address().value(),
-        user.fixed_phone_number().value(),
-        user.mobile_phone_number().value(),
-        user.remarks().value()
-    )
-    .fetch_one(&mut *tx)
-    .await?;
+    let user_row: UserRow = insert_user_query(user).fetch_one(&mut *tx).await?;
     commit_transaction(tx).await?;
 
     Ok(user_row.into())
