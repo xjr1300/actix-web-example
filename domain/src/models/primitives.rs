@@ -72,6 +72,10 @@ const EMAIL_ADDRESS_MAX_LEN: u64 = 254;
 
 /// Eメール・アドレス
 #[derive(Debug, Clone, Validate, DomainPrimitive, PrimitiveDisplay, StringPrimitive)]
+#[primitive(
+    name = "Eメール・アドレス",
+    error_message = "Eメール・アドレスの形式が不正です。"
+)]
 pub struct EmailAddress {
     #[validate(email)]
     #[validate(length(min = EMAIL_ADDRESS_MIN_LEN, max = EMAIL_ADDRESS_MAX_LEN))]
@@ -79,16 +83,24 @@ pub struct EmailAddress {
     value: String,
 }
 
-/// ユーザーの氏名の苗字
+/// ユーザーの氏名の性
 #[derive(Debug, Clone, Validate, DomainPrimitive, PrimitiveDisplay, StringPrimitive)]
+#[primitive(
+    name = "ユーザーの氏名の姓",
+    error_message = "ユーザーの氏名の姓は1文字以上40文字以下です。"
+)]
 pub struct FamilyName {
     #[validate(length(min = 1, max = 40))]
     #[value_getter(ret = "ref", rty = "&str")]
     value: String,
 }
 
-/// ユーザーの氏名の名前
+/// ユーザーの氏名の名
 #[derive(Debug, Clone, Validate, DomainPrimitive, PrimitiveDisplay, StringPrimitive)]
+#[primitive(
+    name = "ユーザーの氏名の名",
+    error_message = "ユーザーの氏名の名は1文字以上40文字以下です。"
+)]
 pub struct GivenName {
     #[validate(length(min = 1, max = 40))]
     #[value_getter(ret = "ref", rty = "&str")]
@@ -101,6 +113,7 @@ static POSTAL_CODE_EXPRESSION: Lazy<Regex> =
 
 /// 郵便番号
 #[derive(Debug, Clone, Validate, DomainPrimitive, PrimitiveDisplay, StringPrimitive)]
+#[primitive(name = "郵便番号", error_message = "郵便番号の形式が不正です。")]
 pub struct PostalCode {
     #[validate(regex(path = "*POSTAL_CODE_EXPRESSION"))]
     #[value_getter(ret = "ref", rty = "&str")]
@@ -109,6 +122,7 @@ pub struct PostalCode {
 
 /// 住所
 #[derive(Debug, Clone, Validate, DomainPrimitive, PrimitiveDisplay, StringPrimitive)]
+#[primitive(name = "住所", error_message = "住所は1文字以上80文字未満です。")]
 pub struct Address {
     #[validate(length(min = 1, max = 80))]
     #[value_getter(ret = "ref", rty = "&str")]

@@ -1,13 +1,16 @@
+use std::collections::HashMap;
 use std::str::FromStr as _;
 
 use proc_macro2::TokenStream as TokenStream2;
-use quote::quote;
+use quote::{format_ident, quote};
 use syn::punctuated::Punctuated;
 use syn::spanned::Spanned as _;
-use syn::{DataStruct, DeriveInput, Expr, Field, Fields, FieldsNamed, Ident, Lit, LitStr};
+use syn::{
+    Attribute, DataStruct, DeriveInput, Expr, Field, Fields, FieldsNamed, Ident, Lit, LitStr,
+};
 
 use crate::types::CommaPunctuatedNameValues;
-use crate::utils::is_data_struct;
+use crate::utils::{is_data_struct, retrieve_name_values_list};
 
 pub(crate) fn impl_domain_primitive(input: DeriveInput) -> syn::Result<TokenStream2> {
     let vis = &input.vis;
@@ -232,6 +235,12 @@ pub(crate) fn impl_string_primitive(input: DeriveInput) -> syn::Result<TokenStre
     let generics = &input.generics;
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
 
+    // ドメイン・プリミティブの名前を取得
+    let PrimitiveInfo {
+        name: _name,
+        error_message,
+    } = retrieve_primitive_info(ident, &input.attrs)?;
+
     // フィールドを持つ構造体であることを確認
     let data_struct = is_data_struct(&input, "StringPrimitive")?;
 
@@ -256,7 +265,9 @@ pub(crate) fn impl_string_primitive(input: DeriveInput) -> syn::Result<TokenStre
                 };
                 match instance.validate() {
                     ::core::result::Result::Ok(_) => ::core::result::Result::Ok(instance),
-                    ::core::result::Result::Err(e) => ::core::result::Result::Err(DomainError::DomainRule(format!("value is invalid: {e}").into())),
+                    ::core::result::Result::Err(e) => ::core::result::Result::Err(
+                        DomainError::DomainRule(#error_message.into())
+                    ),
                 }
             }
         }
@@ -269,4 +280,91 @@ fn has_value_field(fields: &FieldsNamed) -> bool {
         .named
         .iter()
         .any(|f| *f.ident.as_ref().unwrap() == "value")
+}
+
+struct PrimitiveInfo {
+    name: String,
+    error_message: String,
+}
+
+/// ドメイン・プリミティブの名前を取得する。
+///
+/// ```text
+/// #[derive(StringPrimitive)]
+/// #[primitive(name = "ThisIsPrimitiveName")]
+/// pub struct Foo { ... }
+/// ```
+///
+/// 上記`ThisIsPrimitiveName`を取得する。
+fn retrieve_primitive_info(ident: &Ident, attrs: &[Attribute]) -> syn::Result<PrimitiveInfo> {
+    let name_value_list = retrieve_name_values_list(attrs, "primitive")?;
+    // primitive属性が付与されていない場合はエラー
+    if name_value_list.is_empty() {
+        return Err(syn::Error::new(
+            ident.span(),
+            "domain primitive must have the `primitive` attribute",
+        ));
+    }
+    // primitive属性が1つより多く付与されている場合はエラー
+    if 1 < name_value_list.len() {
+        return Err(syn::Error::new(
+            ident.span(),
+            "domain primitive only have one `primitive` attribute",
+        ));
+    }
+    // primitive属性の名前と値の組みは2つのみ
+    let name_values = &name_value_list[0];
+    if name_values.len() != 2 {
+        return Err(syn::Error::new(
+            ident.span(),
+            "`primitive` attributes only have `name` and `error_message`",
+        ));
+    }
+    // nameの値を取得
+    let name = retrieve_name_string_value_from_name_values(ident, name_values, "name")?;
+    // error_messageの亜g隊を取得
+    let error_message =
+        retrieve_name_string_value_from_name_values(ident, name_values, "error_message")?;
+
+    Ok(PrimitiveInfo {
+        name,
+        error_message,
+    })
+}
+
+fn retrieve_name_string_value_from_name_values(
+    ident: &Ident,
+    name_values: &HashMap<Ident, Vec<Lit>>,
+    name: &str,
+) -> syn::Result<String> {
+    if name_values.len() != 2 {
+        return Err(syn::Error::new(
+            ident.span(),
+            "`primitive` attributes only have `name` and error_message",
+        ));
+    }
+    // nameの値を取得
+    let lits = name_values.get(&format_ident!("{}", "name"));
+    if lits.is_none() {
+        return Err(syn::Error::new(
+            ident.span(),
+            "`primitive` attributes only have one `name`",
+        ));
+    }
+    let lits = lits.unwrap();
+    if lits.len() != 1 {
+        return Err(syn::Error::new(
+            ident.span(),
+            "`primitive` attributes only have one `name`",
+        ));
+    }
+    let lit = &lits[0];
+
+    match lit {
+        Lit::Str(name) => Ok(name.value()),
+        _ => Err(syn::Error::new(
+            ident.span(),
+            format!("`primitive` attributes must have domain {} string", name),
+        )),
+    }
 }
