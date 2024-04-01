@@ -4,7 +4,7 @@ use once_cell::sync::Lazy;
 use regex::Regex;
 use uuid::Uuid;
 
-use macros::{DomainPrimitive, PrimitiveDisplay, StringPrimitive, TupleOptionalStringPrimitive};
+use macros::{DomainPrimitive, OptionalStringPrimitive, PrimitiveDisplay, StringPrimitive};
 use validator::Validate;
 
 use crate::common::{DomainError, DomainResult};
@@ -130,7 +130,7 @@ pub struct Address {
 }
 
 /// 固定電話番号
-#[derive(Debug, Clone, PartialEq, Eq, Hash, TupleOptionalStringPrimitive)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, OptionalStringPrimitive)]
 #[primitive(
     name = "固定電話番号",
     regex = r"^0([0-9]-[0-9]{4}|[0-9]{2}-[0-9]{3}|[0-9]{3}-[0-9]{2}|[0-9]{4}-[0-9])-[0-9]{4}$"
@@ -138,12 +138,12 @@ pub struct Address {
 pub struct FixedPhoneNumber(Option<String>);
 
 /// 携帯電話番号
-#[derive(Debug, Clone, PartialEq, Eq, Hash, TupleOptionalStringPrimitive)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, OptionalStringPrimitive)]
 #[primitive(name = "携帯電話番号", regex = r"^0[789]0-[0-9]{4}-[0-9]{4}$")]
 pub struct MobilePhoneNumber(Option<String>);
 
 /// 備考
-#[derive(Debug, Clone, PartialEq, Eq, Hash, TupleOptionalStringPrimitive)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, OptionalStringPrimitive)]
 #[primitive(name = "備考", max = 400)]
 pub struct Remarks(Option<String>);
 

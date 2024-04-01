@@ -1,7 +1,7 @@
 use validator::Validate;
 
 use domain::common::{DomainError, DomainResult};
-use macros::{DomainPrimitive, PrimitiveDisplay, StringPrimitive, TupleOptionalStringPrimitive};
+use macros::{DomainPrimitive, OptionalStringPrimitive, PrimitiveDisplay, StringPrimitive};
 
 /// `value`メソッドが値を返すドメイン・プリミティブを実装できることを確認
 #[test]
@@ -138,7 +138,7 @@ fn string_primitive_can_not_be_constructed_with_empty_or_blank_strings() {
 }
 
 /// 携帯電話番号
-#[derive(Debug, Clone, PartialEq, Eq, Hash, TupleOptionalStringPrimitive)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, OptionalStringPrimitive)]
 #[primitive(name = "携帯電話番号", regex = r"^0[789]0-[0-9]{4}-[0-9]{4}$")]
 pub struct OptionalMobileNumber(Option<String>);
 
@@ -165,7 +165,7 @@ fn mobile_phone_number_can_not_be_constructed_from_an_invalid_string() {
     );
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, TupleOptionalStringPrimitive)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, OptionalStringPrimitive)]
 #[primitive(name = "オプショナル文字列", max = 10)]
 pub struct MaxLengthOptionalString(Option<String>);
 
@@ -212,7 +212,7 @@ fn optional_string_was_constructed_from_empty_or_blank_string_is_none() {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, TupleOptionalStringPrimitive)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, OptionalStringPrimitive)]
 #[primitive(name = "オプショナル文字列", min = 10)]
 pub struct MinLengthOptionalString(Option<String>);
 
@@ -246,7 +246,7 @@ fn optional_string_can_not_be_constructed_from_few_specified_length_characters()
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, TupleOptionalStringPrimitive)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, OptionalStringPrimitive)]
 #[primitive(name = "オプショナル文字列", min = 10, max = 20)]
 pub struct MinMaxLengthOptionalString(Option<String>);
 
@@ -289,7 +289,7 @@ fn optional_string_can_not_be_constructed_from_out_of_range_length_characters() 
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, TupleOptionalStringPrimitive)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, OptionalStringPrimitive)]
 #[primitive(name = "オプショナル文字列", regex = r#"^[0-9]{10}$"#)]
 pub struct RegexOptionalString(Option<String>);
 
