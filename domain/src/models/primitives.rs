@@ -30,7 +30,7 @@ impl<'a, T> TryFrom<&'a str> for EntityId<T> {
                 _phantom: PhantomData,
             }),
             Err(_) => Err(DomainError::Validation(
-                "could not recognize as UUID v4 format string".into(),
+                "文字列の形式がUUIDv4形式でありません。".into(),
             )),
         }
     }
@@ -72,6 +72,10 @@ const EMAIL_ADDRESS_MAX_LEN: u64 = 254;
 
 /// Eメール・アドレス
 #[derive(Debug, Clone, Validate, DomainPrimitive, PrimitiveDisplay, StringPrimitive)]
+#[primitive(
+    name = "Eメール・アドレス",
+    message = "Eメール・アドレスの形式が間違っています。"
+)]
 pub struct EmailAddress {
     #[validate(email)]
     #[validate(length(min = EMAIL_ADDRESS_MIN_LEN, max = EMAIL_ADDRESS_MAX_LEN))]
@@ -79,16 +83,24 @@ pub struct EmailAddress {
     value: String,
 }
 
-/// ユーザーの氏名の苗字
+/// ユーザーの氏名の性
 #[derive(Debug, Clone, Validate, DomainPrimitive, PrimitiveDisplay, StringPrimitive)]
+#[primitive(
+    name = "ユーザーの氏名の姓",
+    message = "ユーザーの氏名の姓は1文字以上40文字以下です。"
+)]
 pub struct FamilyName {
     #[validate(length(min = 1, max = 40))]
     #[value_getter(ret = "ref", rty = "&str")]
     value: String,
 }
 
-/// ユーザーの氏名の名前
+/// ユーザーの氏名の名
 #[derive(Debug, Clone, Validate, DomainPrimitive, PrimitiveDisplay, StringPrimitive)]
+#[primitive(
+    name = "ユーザーの氏名の名",
+    message = "ユーザーの氏名の名は1文字以上40文字以下です。"
+)]
 pub struct GivenName {
     #[validate(length(min = 1, max = 40))]
     #[value_getter(ret = "ref", rty = "&str")]
@@ -101,14 +113,16 @@ static POSTAL_CODE_EXPRESSION: Lazy<Regex> =
 
 /// 郵便番号
 #[derive(Debug, Clone, Validate, DomainPrimitive, PrimitiveDisplay, StringPrimitive)]
+#[primitive(name = "郵便番号", message = "郵便番号の形式が間違っています。")]
 pub struct PostalCode {
-    #[validate(regex(path = "*POSTAL_CODE_EXPRESSION"))]
+    #[validate(regex(path = "*POSTAL_CODE_EXPRESSION",))]
     #[value_getter(ret = "ref", rty = "&str")]
     value: String,
 }
 
 /// 住所
 #[derive(Debug, Clone, Validate, DomainPrimitive, PrimitiveDisplay, StringPrimitive)]
+#[primitive(name = "住所", message = "住所は1文字以上80文字未満です。")]
 pub struct Address {
     #[validate(length(min = 1, max = 80))]
     #[value_getter(ret = "ref", rty = "&str")]
@@ -117,19 +131,20 @@ pub struct Address {
 
 /// 固定電話番号
 #[derive(Debug, Clone, PartialEq, Eq, Hash, TupleOptionalStringPrimitive)]
-#[primitive_validation(
+#[primitive(
+    name = "固定電話番号",
     regex = r"^0([0-9]-[0-9]{4}|[0-9]{2}-[0-9]{3}|[0-9]{3}-[0-9]{2}|[0-9]{4}-[0-9])-[0-9]{4}$"
 )]
 pub struct FixedPhoneNumber(Option<String>);
 
 /// 携帯電話番号
 #[derive(Debug, Clone, PartialEq, Eq, Hash, TupleOptionalStringPrimitive)]
-#[primitive_validation(regex = r"^0[789]0-[0-9]{4}-[0-9]{4}$")]
+#[primitive(name = "携帯電話番号", regex = r"^0[789]0-[0-9]{4}-[0-9]{4}$")]
 pub struct MobilePhoneNumber(Option<String>);
 
 /// 備考
 #[derive(Debug, Clone, PartialEq, Eq, Hash, TupleOptionalStringPrimitive)]
-#[primitive_validation(max = 400)]
+#[primitive(name = "備考", max = 400)]
 pub struct Remarks(Option<String>);
 
 #[cfg(test)]
@@ -255,7 +270,6 @@ mod tests {
     #[test]
     fn can_not_construct_fixed_phone_number_from_invalid_strings() {
         let candidates = [
-            "",
             "---",
             "11-1111-1111",
             "0a-2345-6789",
@@ -281,7 +295,7 @@ mod tests {
         ];
         for expected in candidates {
             assert!(
-                FixedPhoneNumber::try_from_str(expected).is_err(),
+                FixedPhoneNumber::try_from(expected).is_err(),
                 "`{}`",
                 expected
             );
@@ -302,7 +316,6 @@ mod tests {
     #[test]
     fn can_not_construct_mobile_phone_number_from_invalid_strings() {
         let candidates = [
-            "",
             "---",
             "09-1234-5678",
             "0900-1234-5678",
