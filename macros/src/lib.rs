@@ -6,8 +6,8 @@ mod utils;
 
 mod primitive;
 use primitive::{impl_domain_primitive, impl_primitive_display, impl_string_primitive};
-mod optional_string_tuple_primitive;
-use optional_string_tuple_primitive::impl_tuple_optional_string_primitive;
+mod optional_string_primitive;
+use optional_string_primitive::impl_optional_string_primitive;
 mod getter;
 use getter::impl_getter;
 mod builder;
@@ -107,40 +107,36 @@ pub fn derive_string_primitive(input: TokenStream) -> TokenStream {
     }
 }
 
-/// `TupleOptionalStringPrimitive`導出マクロ
+/// `OptionalStringPrimitive`導出マクロ
 ///
 /// `Option<String>`を持つタプル構造体のメソッドを実装する。
 ///
 /// `primitive`属性の`name`には、プリミティブの名前を指定する。
 /// `primitive`属性の`regex`には、格納する文字列がマッチする正規表現を指定する。
 /// `primitive`属性の`min`と`max`には、格納する文字列の最小及び最大長さを指定する。
-/// `primitive`属性の`message`には、格納する文字列の検証に失敗したときの、エラー・メッセージを
-/// 指定する。
 ///
 /// ```text
 /// /// 携帯電話番号
-/// #[derive(Debug, Clone, PartialEq, Eq, Hash, TupleOptionalStringPrimitive)]
+/// #[derive(Debug, Clone, PartialEq, Eq, Hash, OptionalStringPrimitive)]
 /// #[primitive(
 ///     name = "携帯電話番号",
 ///     regex = r"^0[789]0-[0-9]{4}-[0-9]{4}$",
-///     message = "携帯電話番号の形式が不正です。"
 /// )]
 /// pub struct MobilePhoneNumber(Option<String>);
 ///
 /// /// 備考
-/// #[derive(Debug, Clone, PartialEq, Eq, Hash, TupleOptionalStringPrimitive)]
+/// #[derive(Debug, Clone, PartialEq, Eq, Hash, OptionalStringPrimitive)]
 /// #[primitive(
 ///     name = "備考"
 ///     min = 10, max = 400,
-///     message = "備考は10文字以上400文字以下です。"
 /// )]
 /// pub struct Remarks(Option<String>);
 /// ```
-#[proc_macro_derive(TupleOptionalStringPrimitive, attributes(primitive))]
-pub fn derive_tuple_optional_string_primitive(input: TokenStream) -> TokenStream {
+#[proc_macro_derive(OptionalStringPrimitive, attributes(primitive))]
+pub fn derive_optional_string_primitive(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
 
-    match impl_tuple_optional_string_primitive(input) {
+    match impl_optional_string_primitive(input) {
         Ok(token_stream) => TokenStream::from(token_stream),
         Err(err) => TokenStream::from(err.into_compile_error()),
     }

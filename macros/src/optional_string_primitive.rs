@@ -4,9 +4,7 @@ use syn::{spanned::Spanned, DeriveInput, Lit};
 
 use crate::utils::{is_data_struct, retrieve_name_values_list};
 
-pub(crate) fn impl_tuple_optional_string_primitive(
-    input: DeriveInput,
-) -> syn::Result<TokenStream2> {
+pub(crate) fn impl_optional_string_primitive(input: DeriveInput) -> syn::Result<TokenStream2> {
     let ident = &input.ident;
     let generics = &input.generics;
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
