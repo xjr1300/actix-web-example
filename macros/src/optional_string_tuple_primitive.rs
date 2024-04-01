@@ -14,9 +14,9 @@ pub(crate) fn impl_tuple_optional_string_primitive(
     // フィールドを持つ構造体であることを確認
     is_data_struct(&input, "TupleOptionalStringPrimitive")?;
     // 検証属性を取得
-    let validation = retrieve_primitive_validation_value(&input)?;
+    let primitive_attr = retrieve_primitive_attr(&input)?;
     // try_from_strメソッドを実装
-    let try_from_str = impl_try_from_str_method(&ident.to_string(), &validation);
+    let try_from_str = impl_try_from_str_method(&primitive_attr);
 
     Ok(quote! {
         impl #impl_generics #ident #ty_generics #where_clause {
@@ -28,6 +28,10 @@ pub(crate) fn impl_tuple_optional_string_primitive(
 
             pub fn none() -> Self {
                 Self(::core::option::Option::None)
+            }
+
+            pub fn is_some(&self) -> ::core::primitive::bool {
+                self.0.is_some()
             }
 
             pub fn is_none(&self) -> ::core::primitive::bool {
@@ -84,29 +88,46 @@ pub(crate) fn impl_tuple_optional_string_primitive(
     })
 }
 
-fn impl_try_from_str_method(name: &str, validation: &Validation) -> TokenStream2 {
+fn impl_try_from_str_method(primitive_attr: &PrimitiveAttr) -> TokenStream2 {
     let mut validation_tokens: Vec<TokenStream2> = vec![];
-    if let Some(min) = validation.min {
+    let name = &primitive_attr.name;
+    if let Some(min) = primitive_attr.min {
         validation_tokens.push(quote! {
             if value.len() < #min {
-                return ::core::result::Result::Err(DomainError::Validation(::std::format!("the string length of {} must be at least {} characters", #name, #min).into()));
+                return ::core::result::Result::Err(
+                    DomainError::Validation(
+                        ::std::format!(
+                            "{}は{}文字以上の文字列を指定してください。", #name, #min
+                        ).into()
+                    )
+                );
             }
         });
     }
-    if let Some(max) = validation.max {
+    if let Some(max) = primitive_attr.max {
         validation_tokens.push(quote! {
             if #max < value.len() {
-                return ::core::result::Result::Err(DomainError::Validation(::std::format!("the string length of {} must be {} characters or less", #name, #max).into()));
+                return ::core::result::Result::Err(
+                    DomainError::Validation(
+                        ::std::format!(
+                            "{}は{}文字以下の文字列を指定してください。", #name, #max
+                        ).into()
+                    )
+                );
             }
         });
     }
-    if let Some(regex) = &validation.regex {
+    if let Some(regex) = &primitive_attr.regex {
         validation_tokens.push(quote! {
             let re = regex::Regex::new(#regex).unwrap();
             if !re.is_match(value) {
-                return ::core::result::Result::Err(DomainError::Validation(
-                    ::std::format!("{} must match the regular expression", #name).into(),
-                ));
+                return ::core::result::Result::Err(
+                    DomainError::Validation(
+                        ::std::format!(
+                            "{}に指定した文字列の形式が誤っています。", #name
+                        ).into()
+                    )
+                );
             }
         });
     }
@@ -114,6 +135,10 @@ fn impl_try_from_str_method(name: &str, validation: &Validation) -> TokenStream2
     quote! {
         pub fn try_from_str(value: &::std::primitive::str) -> DomainResult<Self> {
             let value = value.trim();
+            if value.is_empty() {
+                return Ok(Self(None));
+            }
+
             #(#validation_tokens)*
 
             ::core::result::Result::Ok(Self(::core::option::Option::Some(value.to_owned())))
@@ -122,27 +147,27 @@ fn impl_try_from_str_method(name: &str, validation: &Validation) -> TokenStream2
 }
 
 #[derive(Default)]
-struct Validation {
+struct PrimitiveAttr {
+    name: String,
     regex: Option<String>,
     min: Option<usize>,
     max: Option<usize>,
 }
 
-fn retrieve_primitive_validation_value(input: &DeriveInput) -> syn::Result<Validation> {
-    let mut result = Validation::default();
+fn retrieve_primitive_attr(input: &DeriveInput) -> syn::Result<PrimitiveAttr> {
+    let mut name: Option<String> = None;
+    let mut regex: Option<String> = None;
+    let mut min: Option<usize> = None;
+    let mut max: Option<usize> = None;
 
-    // primitive_validation属性の名前と値を取得
-    let name_values_list = retrieve_name_values_list(&input.attrs, "primitive_validation")?;
+    // primitive属性の名前と値を取得
+    let name_values_list = retrieve_name_values_list(&input.attrs, "primitive")?;
 
-    // primitive_validation属性が指定されていない場合は検証しない
-    if name_values_list.is_empty() {
-        return Ok(result);
-    }
-    // primitive_validation属性が2つ以上指定されている場合はエラー
+    // primitive属性が2つ以上指定されている場合はエラー
     if name_values_list.len() > 1 {
         return Err(syn::Error::new(
             input.attrs[1].span(),
-            "only one primitive_validation can be specified",
+            "only one primitive can be specified",
         ));
     }
 
@@ -157,24 +182,43 @@ fn retrieve_primitive_validation_value(input: &DeriveInput) -> syn::Result<Valid
         }
     }
 
-    // regexの値を取得
-    if let Some(values) = name_values.get(&format_ident!("regex")) {
+    // nameの値を取得
+    if let Some(values) = name_values.get(&format_ident!("name")) {
         if let Lit::Str(s) = &values[0] {
-            result.regex = Some(s.value());
+            name = Some(s.value());
+        }
+    }
+    // regexの値を取得
+    if let Some(lits) = name_values.get(&format_ident!("regex")) {
+        if let Lit::Str(lit_str) = &lits[0] {
+            regex = Some(lit_str.value());
         }
     }
     // minの値を取得
-    if let Some(values) = name_values.get(&format_ident!("min")) {
-        if let Lit::Int(n) = &values[0] {
-            result.min = Some(n.base10_parse::<usize>()?);
+    if let Some(lits) = name_values.get(&format_ident!("min")) {
+        if let Lit::Int(lit_int) = &lits[0] {
+            min = Some(lit_int.base10_parse::<usize>()?);
         }
     }
     // maxの値を取得
-    if let Some(values) = name_values.get(&format_ident!("max")) {
-        if let Lit::Int(n) = &values[0] {
-            result.max = Some(n.base10_parse::<usize>()?);
+    if let Some(lits) = name_values.get(&format_ident!("max")) {
+        if let Lit::Int(lit_int) = &lits[0] {
+            max = Some(lit_int.base10_parse::<usize>()?);
         }
     }
 
-    Ok(result)
+    // nameが指定されていない場合はエラー
+    if name.is_none() {
+        return Err(syn::Error::new(
+            input.ident.span(),
+            "primitive attribute must have `name`",
+        ));
+    }
+
+    Ok(PrimitiveAttr {
+        name: name.unwrap(),
+        regex,
+        min,
+        max,
+    })
 }

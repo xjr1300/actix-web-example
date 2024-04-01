@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::str::FromStr as _;
 
 use proc_macro2::TokenStream as TokenStream2;
@@ -236,10 +235,7 @@ pub(crate) fn impl_string_primitive(input: DeriveInput) -> syn::Result<TokenStre
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
 
     // ドメイン・プリミティブの名前を取得
-    let PrimitiveInfo {
-        name: _name,
-        error_message,
-    } = retrieve_primitive_info(ident, &input.attrs)?;
+    let StringPrimitiveAttr { name, message } = retrieve_primitive_info(ident, &input.attrs)?;
 
     // フィールドを持つ構造体であることを確認
     let data_struct = is_data_struct(&input, "StringPrimitive")?;
@@ -260,13 +256,18 @@ pub(crate) fn impl_string_primitive(input: DeriveInput) -> syn::Result<TokenStre
         impl #impl_generics #ident #ty_generics #where_clause {
             pub fn new<T: ::std::string::ToString>(value: T) -> DomainResult<Self> {
                 let value = value.to_string().trim().to_string();
+                if value.is_empty() {
+                    return ::core::result::Result::Err(
+                        DomainError::DomainRule(format!("{}は空文字を指定できません。", #name).into())
+                    );
+                }
                 let instance = Self {
                     value,
                 };
                 match instance.validate() {
                     ::core::result::Result::Ok(_) => ::core::result::Result::Ok(instance),
-                    ::core::result::Result::Err(e) => ::core::result::Result::Err(
-                        DomainError::DomainRule(#error_message.into())
+                    ::core::result::Result::Err(_) => ::core::result::Result::Err(
+                        DomainError::DomainRule(#message.into())
                     ),
                 }
             }
@@ -282,21 +283,24 @@ fn has_value_field(fields: &FieldsNamed) -> bool {
         .any(|f| *f.ident.as_ref().unwrap() == "value")
 }
 
-struct PrimitiveInfo {
+struct StringPrimitiveAttr {
     name: String,
-    error_message: String,
+    message: String,
 }
 
-/// ドメイン・プリミティブの名前を取得する。
+/// ドメイン・プリミティブの属性を取得する。
 ///
 /// ```text
 /// #[derive(StringPrimitive)]
-/// #[primitive(name = "ThisIsPrimitiveName")]
+/// #[primitive(name = "プリミティブ", error = "エラー")]
 /// pub struct Foo { ... }
 /// ```
 ///
 /// 上記`ThisIsPrimitiveName`を取得する。
-fn retrieve_primitive_info(ident: &Ident, attrs: &[Attribute]) -> syn::Result<PrimitiveInfo> {
+fn retrieve_primitive_info(ident: &Ident, attrs: &[Attribute]) -> syn::Result<StringPrimitiveAttr> {
+    let mut name: Option<String> = None;
+    let mut message: Option<String> = None;
+
     let name_value_list = retrieve_name_values_list(attrs, "primitive")?;
     // primitive属性が付与されていない場合はエラー
     if name_value_list.is_empty() {
@@ -317,54 +321,38 @@ fn retrieve_primitive_info(ident: &Ident, attrs: &[Attribute]) -> syn::Result<Pr
     if name_values.len() != 2 {
         return Err(syn::Error::new(
             ident.span(),
-            "`primitive` attributes only have `name` and `error_message`",
+            "`primitive` attributes must have `name` and `message`",
         ));
     }
-    // nameの値を取得
-    let name = retrieve_name_string_value_from_name_values(ident, name_values, "name")?;
-    // error_messageの亜g隊を取得
-    let error_message =
-        retrieve_name_string_value_from_name_values(ident, name_values, "error_message")?;
 
-    Ok(PrimitiveInfo {
-        name,
-        error_message,
+    // nameの値を取得
+    if let Some(lits) = name_values.get(&format_ident!("name")) {
+        if let Lit::Str(lit_str) = &lits[0] {
+            name = Some(lit_str.value());
+        }
+    }
+    // errorの値を取得
+    if let Some(lits) = name_values.get(&format_ident!("message")) {
+        if let Lit::Str(lit_str) = &lits[0] {
+            message = Some(lit_str.value());
+        }
+    }
+
+    if name.is_none() {
+        return Err(syn::Error::new(
+            ident.span(),
+            "`primitive` must have `name`",
+        ));
+    }
+    if message.is_none() {
+        return Err(syn::Error::new(
+            ident.span(),
+            "`primitive` must have `message`",
+        ));
+    }
+
+    Ok(StringPrimitiveAttr {
+        name: name.unwrap(),
+        message: message.unwrap(),
     })
-}
-
-fn retrieve_name_string_value_from_name_values(
-    ident: &Ident,
-    name_values: &HashMap<Ident, Vec<Lit>>,
-    name: &str,
-) -> syn::Result<String> {
-    if name_values.len() != 2 {
-        return Err(syn::Error::new(
-            ident.span(),
-            "`primitive` attributes only have `name` and error_message",
-        ));
-    }
-    // nameの値を取得
-    let lits = name_values.get(&format_ident!("{}", "name"));
-    if lits.is_none() {
-        return Err(syn::Error::new(
-            ident.span(),
-            "`primitive` attributes only have one `name`",
-        ));
-    }
-    let lits = lits.unwrap();
-    if lits.len() != 1 {
-        return Err(syn::Error::new(
-            ident.span(),
-            "`primitive` attributes only have one `name`",
-        ));
-    }
-    let lit = &lits[0];
-
-    match lit {
-        Lit::Str(name) => Ok(name.value()),
-        _ => Err(syn::Error::new(
-            ident.span(),
-            format!("`primitive` attributes must have domain {} string", name),
-        )),
-    }
 }

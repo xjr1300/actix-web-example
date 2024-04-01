@@ -22,6 +22,34 @@ use builder::impl_builder;
 /// 3. `value`フィールドが`Copy`トレイトを実装していない型で、その型と異なる参照を`value`メソッドが返す場合、`#[value_getter(ret = "ref", rty = "&str")]`
 ///
 /// 上記3は、`value`フィールドの型が`String`の場合を示す。
+///
+/// ```text
+/// #[derive(DomainPrimitive)]
+/// pub struct Foo {
+///     #[value_getter(ret = "val")]
+///     value: i32,
+/// }
+///
+/// /// 次のメソッドが実装される。
+/// /// impl Foo {
+/// ///     pub fn value(&sel) -> i32 {
+/// ///         self.value
+/// ///     }
+/// /// }
+///
+/// #[derive(DomainPrimitive)]
+/// pub struct Bar {
+///     #[value_getter(ret = "ref", rty = "&str")]
+///     value: String,
+/// }
+///
+/// /// 次のメソッドが実装される。
+/// /// impl Bar {
+/// ///     pub fn value(&str) -> &str {
+/// ///         &self.value
+/// ///     }
+/// /// }
+/// ```
 #[proc_macro_derive(DomainPrimitive, attributes(value_getter))]
 pub fn derive_domain_primitive(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
@@ -47,10 +75,28 @@ pub fn derive_primitive_display(input: TokenStream) -> TokenStream {
 
 /// `StringPrimitive`導出マクロ
 ///
+/// `validator`クレートの`Validate`導出マクロと合わせて使用することを前提にしており、
 /// `value`フィールドを持つ構造体に、`new`メソッドを実装する。
 ///
 /// ドメイン・プリミティブ構造体のインスタンスを構築する`new`メソッドは、引数として渡された
-/// 文字列の前後の空白文字を除去（トリム）した文字列を値として格納する。
+/// 文字列の前後の空白文字を除去した文字列を値として格納する。
+///
+/// `primitive`属性の`name`には、プリミティブの名前を指定する。
+///
+/// ```text
+/// #[derive(Validator, StringPrimitive)]
+/// #[primitive(
+///     name = "Eメール・アドレス",
+///     message = "Eメール・アドレスの文字数は6文字以上254文字以下です。"
+/// )]
+/// pub struct EmailAddress {
+///     #[validate(email)]
+///     #[validate(length(
+///         min = 1, max = 254,
+///     ))]
+///     value: String,
+/// }
+/// ```
 #[proc_macro_derive(StringPrimitive, attributes(primitive))]
 pub fn derive_string_primitive(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
@@ -65,18 +111,32 @@ pub fn derive_string_primitive(input: TokenStream) -> TokenStream {
 ///
 /// `Option<String>`を持つタプル構造体のメソッドを実装する。
 ///
+/// `primitive`属性の`name`には、プリミティブの名前を指定する。
+/// `primitive`属性の`regex`には、格納する文字列がマッチする正規表現を指定する。
+/// `primitive`属性の`min`と`max`には、格納する文字列の最小及び最大長さを指定する。
+/// `primitive`属性の`message`には、格納する文字列の検証に失敗したときの、エラー・メッセージを
+/// 指定する。
+///
 /// ```text
 /// /// 携帯電話番号
 /// #[derive(Debug, Clone, PartialEq, Eq, Hash, TupleOptionalStringPrimitive)]
-/// #[primitive_validation(regex = r"^0[789]0-[0-9]{4}-[0-9]{4}$")]
+/// #[primitive(
+///     name = "携帯電話番号",
+///     regex = r"^0[789]0-[0-9]{4}-[0-9]{4}$",
+///     message = "携帯電話番号の形式が不正です。"
+/// )]
 /// pub struct MobilePhoneNumber(Option<String>);
 ///
 /// /// 備考
 /// #[derive(Debug, Clone, PartialEq, Eq, Hash, TupleOptionalStringPrimitive)]
-/// #[primitive_validation(min = 10, max = 400)]
+/// #[primitive(
+///     name = "備考"
+///     min = 10, max = 400,
+///     message = "備考は10文字以上400文字以下です。"
+/// )]
 /// pub struct Remarks(Option<String>);
 /// ```
-#[proc_macro_derive(TupleOptionalStringPrimitive, attributes(primitive_validation))]
+#[proc_macro_derive(TupleOptionalStringPrimitive, attributes(primitive))]
 pub fn derive_tuple_optional_string_primitive(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
 

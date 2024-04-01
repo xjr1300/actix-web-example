@@ -1328,9 +1328,12 @@ dependencies = [
 name = "macros"
 version = "0.1.0"
 dependencies = [
+ "domain",
  "proc-macro2",
  "quote",
+ "regex",
  "syn 2.0.55",
+ "validator",
 ]
 
 [[package]]
