@@ -135,17 +135,17 @@ pub struct Address {
     name = "固定電話番号",
     regex = r"^0([0-9]-[0-9]{4}|[0-9]{2}-[0-9]{3}|[0-9]{3}-[0-9]{2}|[0-9]{4}-[0-9])-[0-9]{4}$"
 )]
-pub struct FixedPhoneNumber(Option<String>);
+pub struct OptionalFixedPhoneNumber(Option<String>);
 
 /// 携帯電話番号
 #[derive(Debug, Clone, PartialEq, Eq, Hash, OptionalStringPrimitive)]
 #[primitive(name = "携帯電話番号", regex = r"^0[789]0-[0-9]{4}-[0-9]{4}$")]
-pub struct MobilePhoneNumber(Option<String>);
+pub struct OptionalMobilePhoneNumber(Option<String>);
 
 /// 備考
 #[derive(Debug, Clone, PartialEq, Eq, Hash, OptionalStringPrimitive)]
 #[primitive(name = "備考", max = 400)]
-pub struct Remarks(Option<String>);
+pub struct OptionalRemarks(Option<String>);
 
 #[cfg(test)]
 mod tests {
@@ -261,7 +261,7 @@ mod tests {
             "01234-5-6789",
         ];
         for expected in candidates {
-            let instance = FixedPhoneNumber::try_from_str(expected).unwrap();
+            let instance = OptionalFixedPhoneNumber::try_from_str(expected).unwrap();
             assert_eq!(expected, instance.value().unwrap(), "`{}`", expected);
         }
     }
@@ -295,7 +295,7 @@ mod tests {
         ];
         for expected in candidates {
             assert!(
-                FixedPhoneNumber::try_from(expected).is_err(),
+                OptionalFixedPhoneNumber::try_from(expected).is_err(),
                 "`{}`",
                 expected
             );
@@ -307,7 +307,7 @@ mod tests {
     fn construct_mobile_phone_number_from_valid_strings() {
         let candidates = ["070-1234-5678", "080-1234-5678", "090-1234-5678"];
         for expected in candidates {
-            let instance = MobilePhoneNumber::try_from_str(expected).unwrap();
+            let instance = OptionalMobilePhoneNumber::try_from_str(expected).unwrap();
             assert_eq!(expected, instance.value().unwrap(), "`{}`", expected);
         }
     }
@@ -332,7 +332,7 @@ mod tests {
         ];
         for expected in candidates {
             assert!(
-                MobilePhoneNumber::try_from_str(expected).is_err(),
+                OptionalMobilePhoneNumber::try_from_str(expected).is_err(),
                 "`{}`",
                 expected
             );

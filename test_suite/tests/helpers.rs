@@ -131,16 +131,16 @@ pub fn generate_address() -> Address {
     Address::new("東京都港区芝公園4-2-8").unwrap()
 }
 
-pub fn generate_fixed_phone_number() -> FixedPhoneNumber {
-    FixedPhoneNumber::try_from("03-3433-5111").unwrap()
+pub fn generate_fixed_phone_number() -> OptionalFixedPhoneNumber {
+    OptionalFixedPhoneNumber::try_from("03-3433-5111").unwrap()
 }
 
-pub fn generate_mobile_phone_number() -> MobilePhoneNumber {
-    MobilePhoneNumber::try_from("090-1234-5678").unwrap()
+pub fn generate_mobile_phone_number() -> OptionalMobilePhoneNumber {
+    OptionalMobilePhoneNumber::try_from("090-1234-5678").unwrap()
 }
 
-pub fn generate_remarks() -> Remarks {
-    Remarks::try_from("すもももももももものうち。もももすももももものうち。").unwrap()
+pub fn generate_remarks() -> OptionalRemarks {
+    OptionalRemarks::try_from("すもももももももものうち。もももすももももものうち。").unwrap()
 }
 
 pub fn generate_user(id: UserId, email: EmailAddress) -> User {

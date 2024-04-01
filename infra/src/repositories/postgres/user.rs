@@ -46,9 +46,11 @@ pub struct UserRow {
 impl From<UserRow> for User {
     fn from(row: UserRow) -> Self {
         // データベースから取得した値を変換するためアンラップ
-        let fixed_phone_number = FixedPhoneNumber::try_from(row.fixed_phone_number).unwrap();
-        let mobile_phone_number = MobilePhoneNumber::try_from(row.mobile_phone_number).unwrap();
-        let remarks = Remarks::try_from(row.remarks).unwrap();
+        let fixed_phone_number =
+            OptionalFixedPhoneNumber::try_from(row.fixed_phone_number).unwrap();
+        let mobile_phone_number =
+            OptionalMobilePhoneNumber::try_from(row.mobile_phone_number).unwrap();
+        let remarks = OptionalRemarks::try_from(row.remarks).unwrap();
 
         UserBuilder::new()
             .id(UserId::new(row.id))
