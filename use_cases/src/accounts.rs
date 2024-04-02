@@ -83,19 +83,19 @@ pub async fn signup(
         .created_at(dt)
         .updated_at(dt)
         .build()
-        .map_err(|e| {
-            UseCaseError::unexpected(format!(
-                "ユーザーを構築するときにエラーが発生しました。{}",
-                e
-            ))
-        })?;
-    // ユーザーを登録
-    let created_user = repository.create(user).await.map_err(|e| {
-        UseCaseError::unexpected(format!(
-            "ユーザーを登録するときにエラーが発生しました。{}",
-            e
-        ))
-    })?;
+        .map_err(|e| UseCaseError::domain_rule(e.to_string()))?;
 
-    Ok(created_user)
+    // ユーザーを登録
+    match repository.create(user).await {
+        Ok(created_user) => Ok(created_user),
+        Err(e) => {
+            let message = e.to_string();
+            match message.contains("ak_users_email") {
+                true => Err(UseCaseError::domain_rule(
+                    "同じEメール・アドレスを持つユーザーが、すでに登録されています。",
+                )),
+                false => Err(UseCaseError::unexpected(message)),
+            }
+        }
+    }
 }

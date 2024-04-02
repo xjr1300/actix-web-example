@@ -1181,6 +1181,7 @@ dependencies = [
  "actix-web",
  "async-trait",
  "domain",
+ "macros",
  "mime",
  "paste",
  "secrecy",

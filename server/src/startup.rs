@@ -6,7 +6,7 @@ use actix_web::{web, App, HttpServer};
 use tracing_actix_web::TracingLogger;
 
 use infra::routes::accounts::accounts_scope;
-use infra::routes::common::{default_error_handler, health_check};
+use infra::routes::{default_error_handler, health_check};
 use infra::RequestContext;
 
 /// HTTPサーバーを構築する。

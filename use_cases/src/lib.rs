@@ -4,6 +4,16 @@ pub mod accounts;
 
 pub type ProcessUseCaseResult<T> = Result<T, UseCaseError>;
 
+/// ユース・ケース・エラー・コード
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[repr(u32)]
+pub enum UseCaseErrorCode {
+    Unexpected = 0,
+    Validation = 1,
+    DomainRule = 2,
+    Repository = 3,
+}
+
 /// ユース・ケース・エラー分類
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum UseCaseErrorKind {
@@ -52,8 +62,8 @@ impl std::fmt::Display for UseCaseErrorKind {
 pub struct UseCaseError {
     /// ユース・ケース・エラー分類
     pub kind: UseCaseErrorKind,
-    /// アプリケーション・エラー・コード
-    pub error_code: u32,
+    /// ユース・ケース・エラー・コード
+    pub error_code: UseCaseErrorCode,
     /// メッセージ
     pub message: Cow<'static, str>,
 }
@@ -64,7 +74,7 @@ impl UseCaseError {
     /// # 引数
     ///
     /// * `kind` - ユース・ケース・エラー分類
-    /// * `error_code` - アプリケーション・エラー・コード
+    /// * `error_code` - ユース・ケース・エラー・コード
     /// * `message` - メッセージ
     ///
     /// # 戻り値
@@ -72,7 +82,7 @@ impl UseCaseError {
     /// ユース・ケース・エラー
     pub fn new(
         kind: UseCaseErrorKind,
-        error_code: u32,
+        error_code: UseCaseErrorCode,
         message: impl Into<Cow<'static, str>>,
     ) -> Self {
         Self {
@@ -85,7 +95,7 @@ impl UseCaseError {
     pub fn unexpected(message: impl Into<Cow<'static, str>>) -> Self {
         Self {
             kind: UseCaseErrorKind::Unexpected,
-            error_code: 0,
+            error_code: UseCaseErrorCode::Unexpected,
             message: message.into(),
         }
     }
@@ -93,7 +103,7 @@ impl UseCaseError {
     pub fn validation(message: impl Into<Cow<'static, str>>) -> Self {
         Self {
             kind: UseCaseErrorKind::Validation,
-            error_code: 1,
+            error_code: UseCaseErrorCode::Validation,
             message: message.into(),
         }
     }
@@ -101,7 +111,7 @@ impl UseCaseError {
     pub fn domain_rule(message: impl Into<Cow<'static, str>>) -> Self {
         Self {
             kind: UseCaseErrorKind::DomainRule,
-            error_code: 2,
+            error_code: UseCaseErrorCode::DomainRule,
             message: message.into(),
         }
     }
@@ -109,7 +119,7 @@ impl UseCaseError {
     pub fn repository(message: impl Into<Cow<'static, str>>) -> Self {
         Self {
             kind: UseCaseErrorKind::Repository,
-            error_code: 3,
+            error_code: UseCaseErrorCode::Repository,
             message: message.into(),
         }
     }

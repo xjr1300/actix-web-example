@@ -3,6 +3,7 @@ use std::path::Path;
 
 use anyhow::Context as _;
 use once_cell::sync::Lazy;
+use reqwest::header::{HeaderValue, CONTENT_TYPE};
 use secrecy::SecretString;
 use sqlx::{Connection as _, Executor as _, PgConnection, PgPool};
 use uuid::Uuid;
@@ -32,6 +33,8 @@ static TRACING: Lazy<()> = Lazy::new(|| {
     }
 });
 
+pub const CONTENT_TYPE_APPLICATION_JSON: &str = "application/json";
+
 /// 統合テスト用アプリ
 pub struct TestApp {
     /// アプリのルートURI
@@ -40,6 +43,19 @@ pub struct TestApp {
     pub pool: PgPool,
 }
 
+impl TestApp {
+    pub async fn request_accounts_signup(&self, body: String) -> anyhow::Result<reqwest::Response> {
+        let client = reqwest::Client::new();
+
+        client
+            .post(&format!("{}/accounts/signup", self.root_uri))
+            .body(body)
+            .header(CONTENT_TYPE, HeaderValue::from_static("application/json"))
+            .send()
+            .await
+            .map_err(|e| e.into())
+    }
+}
 /// 統合テスト用のHTTPサーバーを起動する。
 ///
 /// # 戻り値
@@ -114,6 +130,9 @@ pub async fn configure_database(settings: &DatabaseSettings) -> anyhow::Result<P
 /// cspell: disable-next-line
 pub const RAW_PHC_PASSWORD: &str = "$argon2id$v=19$m=65536,t=2,p=1$gZiV/M1gPc22ElAH/Jh1Hw$CWOrkoo7oJBQ/iyh7uJ0LO2aLEfrHwTWllSAxT0zRno";
 
+/// 未加工なパスワードとして使用できる文字列
+pub const VALID_RAW_PASSWORD: &str = "Az3#Za3@";
+
 pub fn generate_phc_password() -> PhcPassword {
     PhcPassword::new(SecretString::new(String::from(RAW_PHC_PASSWORD))).unwrap()
 }
@@ -164,4 +183,23 @@ pub fn generate_user(id: UserId, email: EmailAddress) -> User {
         .updated_at(dt)
         .build()
         .unwrap()
+}
+
+pub fn signup_request_body_json() -> String {
+    format!(
+        r#"
+        {{
+            "email": "foo@example.com",
+            "password": "{}",
+            "familyName": "山田",
+            "givenName": "太郎",
+            "postalCode": "899-7103",
+            "address": "鹿児島県志布志市志布志町志布志2-1-1",
+            "fixedPhoneNumber": "099-472-1111",
+            "mobilePhoneNumber": "090-1234-5678",
+            "remarks": "日本に実際に存在するややこしい地名です。"
+        }}
+        "#,
+        VALID_RAW_PASSWORD
+    )
 }
