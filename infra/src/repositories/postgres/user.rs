@@ -18,6 +18,10 @@ pub type PgUserRepository = PgRepository<User>;
 #[async_trait]
 impl UserRepository for PgUserRepository {
     /// ユーザーを登録する。
+    ///
+    /// ユーザーを登録するとき、ユーザーの作成日時と更新日時は何らかの日時を設定する。
+    /// 登録後に返されるユーザーの作成日時と更新日時の作成日時と更新日時には、データベースに登録
+    /// した日時が設定されている。
     async fn create(&self, _user: User) -> DomainResult<User> {
         let mut _tx = self.begin().await?;
 
@@ -45,7 +49,7 @@ pub struct UserRow {
 
 impl From<UserRow> for User {
     fn from(row: UserRow) -> Self {
-        // データベースから取得した値を変換するためアンラップ
+        // データベースから取得した値を変換するため確認しないで値を取り出し
         let fixed_phone_number =
             OptionalFixedPhoneNumber::try_from(row.fixed_phone_number).unwrap();
         let mobile_phone_number =
