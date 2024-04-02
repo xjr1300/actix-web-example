@@ -4,13 +4,13 @@ use sqlx::Postgres;
 use time::OffsetDateTime;
 use uuid::Uuid;
 
-use domain::common::{DomainError, DomainResult};
 use domain::models::passwords::PhcPassword;
 use domain::models::primitives::*;
 use domain::models::user::{User, UserBuilder, UserId};
 use domain::repositories::user::UserRepository;
+use domain::{DomainError, DomainResult};
 
-use crate::repositories::postgres::common::PgRepository;
+use crate::repositories::postgres::{commit_transaction, PgRepository};
 
 /// PostgreSQLユーザー・リポジトリ
 pub type PgUserRepository = PgRepository<User>;
@@ -22,10 +22,15 @@ impl UserRepository for PgUserRepository {
     /// ユーザーを登録するとき、ユーザーの作成日時と更新日時は何らかの日時を設定する。
     /// 登録後に返されるユーザーの作成日時と更新日時の作成日時と更新日時には、データベースに登録
     /// した日時が設定されている。
-    async fn create(&self, _user: User) -> DomainResult<User> {
-        let mut _tx = self.begin().await?;
+    async fn create(&self, user: User) -> DomainResult<User> {
+        let mut tx = self.begin().await?;
+        let added_user = insert_user_query(&user)
+            .fetch_one(&mut *tx)
+            .await
+            .map_err(|e| DomainError::Unexpected(e.into()))?;
+        commit_transaction(tx).await?;
 
-        Err(DomainError::Validation(String::from("error").into()))
+        Ok(added_user.into())
     }
 }
 
@@ -85,7 +90,6 @@ impl From<UserRow> for User {
 /// # 戻り値
 ///
 /// ユーザーをデータベースに登録するクエリ
-#[allow(dead_code)]
 pub fn insert_user_query(
     user: &User,
 ) -> sqlx::query::QueryAs<'_, sqlx::Postgres, UserRow, sqlx::postgres::PgArguments> {

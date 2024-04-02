@@ -7,10 +7,11 @@ use secrecy::SecretString;
 use sqlx::{Connection as _, Executor as _, PgConnection, PgPool};
 use uuid::Uuid;
 
-use domain::common::now_jst;
 use domain::models::passwords::PhcPassword;
 use domain::models::primitives::*;
 use domain::models::user::{User, UserBuilder, UserId};
+use domain::now_jst;
+use infra::RequestContext;
 use server::settings::{
     retrieve_app_settings, AppEnvironment, DatabaseSettings, ENV_APP_ENVIRONMENT, SETTINGS_DIR_NAME,
 };
@@ -62,11 +63,13 @@ pub async fn spawn_test_app() -> anyhow::Result<TestApp> {
     app_settings.database.name = format!("awe_test_{}", Uuid::new_v4()).replace('-', "_");
     // テスト用のデータベースを作成して、接続及び構成
     let pool = configure_database(&app_settings.database).await?;
+    // テスト用のデータベースに接続するリポジトリのコンテナを構築
+    let context = RequestContext::new(app_settings.password.pepper, pool.clone());
 
     // ポート0を指定してTCPソケットにバインドすることで、OSにポート番号の決定を委譲
     let listener = TcpListener::bind("localhost:0").context("failed to bind random port")?;
     let port = listener.local_addr().unwrap().port();
-    let server = build_http_server(listener, pool.clone())?;
+    let server = build_http_server(listener, context)?;
     // 統合テストが終了すると、HTTPサーバーがリッスンするポートが閉じられる。
     // すると、actix-webが提供する`Server`が終了して、ここで生み出したスレッドが終了する。
     tokio::spawn(server);

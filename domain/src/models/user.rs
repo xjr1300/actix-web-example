@@ -2,9 +2,9 @@ use time::OffsetDateTime;
 
 use macros::{Builder, Getter};
 
-use crate::common::{now_jst, DomainError, DomainResult};
 use crate::models::passwords::PhcPassword;
 use crate::models::primitives::*;
+use crate::{now_jst, DomainError, DomainResult};
 
 /// ユーザーID
 pub type UserId = EntityId<User>;
@@ -135,7 +135,7 @@ mod tests {
 
     use super::*;
     use crate::models::passwords::tests::VALID_RAW_PASSWORD;
-    use crate::models::passwords::{generate_phc_string, PasswordPepper, RawPassword};
+    use crate::models::passwords::{generate_phc_string, RawPassword};
 
     /// ユーザーを構築できることを確認
     #[test]
@@ -144,7 +144,7 @@ mod tests {
         let email = EmailAddress::new("foo@example.com").unwrap();
         let plain_password = SecretString::new(String::from(VALID_RAW_PASSWORD));
         let raw_password = RawPassword::new(plain_password).unwrap();
-        let password_pepper = PasswordPepper(SecretString::new(String::from("password-pepper")));
+        let password_pepper = SecretString::new(String::from("password-pepper"));
         let password = generate_phc_string(&raw_password, &password_pepper).unwrap();
         let active = true;
         let family_name = FamilyName::new("foo").unwrap();
@@ -196,7 +196,7 @@ mod tests {
         let email = EmailAddress::new("foo@example.com").unwrap();
         let plain_password = SecretString::new(String::from(VALID_RAW_PASSWORD));
         let raw_password = RawPassword::new(plain_password).unwrap();
-        let password_pepper = PasswordPepper(SecretString::new(String::from("password-pepper")));
+        let password_pepper = SecretString::new(String::from("password-pepper"));
         let password = generate_phc_string(&raw_password, &password_pepper).unwrap();
         let active = true;
         let family_name = FamilyName::new("foo").unwrap();

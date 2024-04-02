@@ -1,6 +1,6 @@
 use validator::Validate;
 
-use domain::common::{DomainError, DomainResult};
+use domain::{DomainError, DomainResult};
 use macros::{DomainPrimitive, OptionalStringPrimitive, PrimitiveDisplay, StringPrimitive};
 
 /// `value`メソッドが値を返すドメイン・プリミティブを実装できることを確認

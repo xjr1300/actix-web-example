@@ -1,11 +1,11 @@
 use async_trait::async_trait;
 
-use crate::common::DomainResult;
 use crate::models::user::User;
+use crate::DomainResult;
 
 /// ユーザー・リポジトリ
 #[async_trait]
-pub trait UserRepository: Send + Sync + 'static {
+pub trait UserRepository: Sync + Send {
     /// ユーザーを登録する。
     ///
     /// # 引数

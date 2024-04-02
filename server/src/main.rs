@@ -3,6 +3,7 @@ use std::path::Path;
 
 use anyhow::anyhow;
 
+use infra::RequestContext;
 use server::settings::{
     retrieve_app_settings, AppEnvironment, ENV_APP_ENVIRONMENT, ENV_APP_ENVIRONMENT_DEFAULT,
     SETTINGS_DIR_NAME,
@@ -34,6 +35,7 @@ async fn main() -> anyhow::Result<()> {
 
     // データベース接続プールを取得
     let pool = app_settings.database.connection_pool();
+    let context = RequestContext::new(app_settings.password.pepper, pool);
 
     // Httpサーバーがリッスンするポートをバインド
     let address = format!("localhost:{}", app_settings.http_server.port);
@@ -41,7 +43,7 @@ async fn main() -> anyhow::Result<()> {
     tracing::info!("Http server is listening on `{}`", &address);
 
     // HTTPサーバーを起動
-    build_http_server(listener, pool)?
+    build_http_server(listener, context)?
         .await
         .map_err(|e| e.into())
 }

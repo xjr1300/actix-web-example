@@ -2,10 +2,10 @@ use secrecy::ExposeSecret as _;
 
 use domain::models::primitives::EmailAddress;
 use domain::models::user::{User, UserId};
-use infra::repositories::postgres::common::{
+use infra::repositories::postgres::user::{insert_user_query, UserRow};
+use infra::repositories::postgres::{
     commit_transaction, IsolationLevel, PgRepository, PgTransaction,
 };
-use infra::repositories::postgres::user::{insert_user_query, UserRow};
 use time::Duration;
 
 use crate::helpers::{generate_user, spawn_test_app};

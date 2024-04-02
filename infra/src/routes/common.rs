@@ -7,7 +7,7 @@ use actix_web::middleware::ErrorHandlerResponse;
 use actix_web::{HttpResponse, Responder, ResponseError};
 use mime::Mime;
 
-use domain::common::DomainError;
+use domain::DomainError;
 
 /// リクエスト処理結果
 pub type ProcessRequestResult<T> = Result<T, ProcessRequestError>;
@@ -16,14 +16,14 @@ pub type ProcessRequestResult<T> = Result<T, ProcessRequestError>;
 ///
 /// * ドメイン層で発生したエラーは、`DomainError` -> `ProcessRequestError`に変換する。
 /// * ユース・ケース層で発生したエラーは、次のように変換する。
-///   * ユース・ケースでエラーが発生した場合、`FooUseCaseError` -> `ProcessRequestError`
-///   * ユース・ケースがドメイン層のエラーを取得した場合、`DomainError` -> `FooUseCaseError` -> `ProcessRequestError`
+///   * ユース・ケースでエラーが発生した場合、`UseCaseError` -> `ProcessRequestError`
+///   * ユース・ケースがドメイン層のエラーを取得した場合、`DomainError` -> `UseCaseError` -> `ProcessRequestError`
 #[derive(Debug, Clone, thiserror::Error)]
 pub struct ProcessRequestError {
     /// HTTPステータス・コード
-    status_code: StatusCode,
+    pub status_code: StatusCode,
     /// レスポンス・ボディ
-    body: ErrorResponseBody,
+    pub body: ErrorResponseBody,
 }
 
 /// リクエスト処理エラーを、`actix-web`のエラー・レスポンスとして扱えるように`ResponseError`を実装する。
@@ -92,10 +92,10 @@ pub struct ErrorResponseBody {
     /// アプリ独自のエラー・コード
     ///
     /// `actix-web`がエラー処理した場合は`None`である。
-    error_code: Option<u32>,
+    pub error_code: Option<u32>,
 
     /// エラー・メッセージ
-    message: Cow<'static, str>,
+    pub message: Cow<'static, str>,
 }
 
 impl std::fmt::Display for ErrorResponseBody {

@@ -7,7 +7,7 @@ use uuid::Uuid;
 use macros::{DomainPrimitive, OptionalStringPrimitive, PrimitiveDisplay, StringPrimitive};
 use validator::Validate;
 
-use crate::common::{DomainError, DomainResult};
+use crate::{DomainError, DomainResult};
 
 /// エンティティID
 ///
@@ -50,6 +50,12 @@ impl<T> Default for EntityId<T> {
             value: Uuid::new_v4(),
             _phantom: Default::default(),
         }
+    }
+}
+
+impl<T> std::fmt::Display for EntityId<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.value)
     }
 }
 
@@ -150,7 +156,7 @@ pub struct OptionalRemarks(Option<String>);
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::common::DomainError;
+    use crate::DomainError;
 
     /// UUID v4形式の文字列からエンティティIDを構築できるか確認
     #[test]

@@ -25,6 +25,7 @@ time = { version = "0.3.34", features = [
     "macros",
 ] }
 tokio = { version = "1.36.0", features = ["rt-multi-thread", "macros"] }
+use_cases = { path = "../use_cases" }
 uuid = { version = "1.8.0", features = ["v4", "serde"] }
 
 [dev-dependencies.sqlx]
