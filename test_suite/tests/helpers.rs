@@ -131,15 +131,15 @@ pub fn generate_address() -> Address {
     Address::new("東京都港区芝公園4-2-8").unwrap()
 }
 
-pub fn generate_fixed_phone_number() -> OptionalFixedPhoneNumber {
+pub fn generate_optional_fixed_phone_number() -> OptionalFixedPhoneNumber {
     OptionalFixedPhoneNumber::try_from("03-3433-5111").unwrap()
 }
 
-pub fn generate_mobile_phone_number() -> OptionalMobilePhoneNumber {
+pub fn generate_optional_mobile_phone_number() -> OptionalMobilePhoneNumber {
     OptionalMobilePhoneNumber::try_from("090-1234-5678").unwrap()
 }
 
-pub fn generate_remarks() -> OptionalRemarks {
+pub fn generate_optional_remarks() -> OptionalRemarks {
     OptionalRemarks::try_from("すもももももももものうち。もももすももももものうち。").unwrap()
 }
 
@@ -154,9 +154,9 @@ pub fn generate_user(id: UserId, email: EmailAddress) -> User {
         .given_name(generate_given_name())
         .postal_code(generate_postal_code())
         .address(generate_address())
-        .fixed_phone_number(generate_fixed_phone_number())
-        .mobile_phone_number(generate_mobile_phone_number())
-        .remarks(generate_remarks())
+        .fixed_phone_number(generate_optional_fixed_phone_number())
+        .mobile_phone_number(generate_optional_mobile_phone_number())
+        .remarks(generate_optional_remarks())
         .created_at(dt)
         .updated_at(dt)
         .build()
