@@ -76,7 +76,11 @@ fn validate_plain_password(s: &str) -> DomainResult<()> {
     // シンボルが含まれるか確認
     if !s.chars().any(|ch| PASSWORD_SYMBOLS_CANDIDATES.contains(ch)) {
         return Err(DomainError::DomainRule(
-            "パスワードは記号を1文字以上含めなくてはなりません。".into(),
+            format!(
+                "パスワードは記号({})を1文字以上含めなくてはなりません。",
+                PASSWORD_SYMBOLS_CANDIDATES
+            )
+            .into(),
         ));
     }
     // 文字の出現回数を確認
@@ -99,7 +103,7 @@ fn validate_plain_password(s: &str) -> DomainResult<()> {
 pub struct PasswordPepper(pub SecretString);
 
 /// PHC文字列正規表現(cspell: disable-next-line)
-const PHC_STRING_EXPRESSION: &str = r#"/^\$argon2id\$v=(?:16|19)\$m=\d{1,10},t=\d{1,10},p=\d{1,3}(?:,keyid=[A-Za-z0-9+/]{0,11}(?:,data=[A-Za-z0-9+/]{0,43})?)?\$[A-Za-z0-9+/]{11,64}\$[A-Za-z0-9+/]{16,86}$/i"#;
+const PHC_STRING_EXPRESSION: &str = r#"^\$argon2id\$v=(?:16|19)\$m=\d{1,10},t=\d{1,10},p=\d{1,3}(?:,keyid=[A-Za-z0-9+/]{0,11}(?:,data=[A-Za-z0-9+/]{0,43})?)?\$[A-Za-z0-9+/]{11,64}\$[A-Za-z0-9+/]{16,86}$"#;
 
 /// PHCパスワード文字列
 #[derive(Debug, Clone, DomainPrimitive)]
@@ -207,7 +211,7 @@ fn sprinkle_pepper_on_password(
 }
 
 #[cfg(test)]
-pub(crate) mod tests {
+pub mod tests {
     use std::str::FromStr as _;
 
     use secrecy::{ExposeSecret as _, SecretString};
@@ -217,6 +221,10 @@ pub(crate) mod tests {
 
     /// 未加工なパスワードとして使用できる文字列
     pub const VALID_RAW_PASSWORD: &str = "Az3#Za3@";
+
+    /// PHC文字列
+    /// cspell: disable-next-line
+    pub const RAW_PHC_PASSWORD: &str = "$argon2id$v=19$m=65536,t=2,p=1$gZiV/M1gPc22ElAH/Jh1Hw$CWOrkoo7oJBQ/iyh7uJ0LO2aLEfrHwTWllSAxT0zRno";
 
     /// 有効な文字列から、未加工なパスワードを構築できることを確認
     #[test]
