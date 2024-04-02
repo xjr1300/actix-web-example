@@ -342,7 +342,6 @@ pub(crate) mod tests {
             RawPassword::new(SecretString::new(String::from(VALID_RAW_PASSWORD))).unwrap();
         let pepper = PasswordPepper(SecretString::new(String::from("asdf")));
         let phc_string = generate_phc_string(&raw_password, &pepper).unwrap();
-        println!("PHC String: {}", phc_string.value().expose_secret());
         // 同じパスワードで検証に成功するか確認
         assert!(verify_password(&raw_password, &pepper, &phc_string).unwrap());
     }
