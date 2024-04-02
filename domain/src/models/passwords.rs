@@ -4,6 +4,7 @@ use std::str::FromStr as _;
 use anyhow::anyhow;
 use argon2::password_hash::SaltString;
 use argon2::{Algorithm, Argon2, Params, PasswordHash, PasswordHasher, PasswordVerifier, Version};
+use regex::Regex;
 use secrecy::{ExposeSecret as _, SecretString};
 use validator::Validate;
 
@@ -51,25 +52,31 @@ fn validate_plain_password(s: &str) -> DomainResult<()> {
     // パスワードの文字数を確認
     if s.len() < PASSWORD_MIN_LENGTH {
         return Err(DomainError::DomainRule(
-            format!("password must be at least {PASSWORD_MIN_LENGTH} characters").into(),
+            format!("パスワードは少なくとも{PASSWORD_MIN_LENGTH}文字以上指定してください。").into(),
         ));
     }
     // 大文字のアルファベットが含まれるか確認
     if !s.chars().any(|ch| ch.is_ascii_uppercase()) {
         return Err(DomainError::DomainRule(
-            "password must contain at least one uppercase alphabetic character".into(),
+            "パスワードは大文字のアルファベットを1文字以上含めなくてはなりません。".into(),
         ));
     }
     // 小文字のアルファベットが含まれるか確認
     if !s.chars().any(|ch| ch.is_ascii_lowercase()) {
         return Err(DomainError::DomainRule(
-            "password must contain at least one lowercase alphabetic character".into(),
+            "パスワードは小文字のアルファベットを1文字以上含めなくてはなりません。".into(),
         ));
     }
-    // シンボルが1つ以上含まれるか確認
+    // 数字が含まれるか確認
+    if !s.chars().any(|ch| ch.is_ascii_digit()) {
+        return Err(DomainError::DomainRule(
+            "パスワードは数字を1文字以上含めなくてはなりません。".into(),
+        ));
+    }
+    // シンボルが含まれるか確認
     if !s.chars().any(|ch| PASSWORD_SYMBOLS_CANDIDATES.contains(ch)) {
         return Err(DomainError::DomainRule(
-            "password must contain at least one symbol character".into(),
+            "パスワードは記号を1文字以上含めなくてはなりません。".into(),
         ));
     }
     // 文字の出現回数を確認
@@ -80,7 +87,7 @@ fn validate_plain_password(s: &str) -> DomainResult<()> {
     let max_number_of_appearances = number_of_chars.values().max().unwrap();
     if PASSWORD_MAX_NUMBER_OF_CHAR_APPEARANCES < *max_number_of_appearances {
         return Err(DomainError::DomainRule(
-            format!("password cannot contain more than {PASSWORD_MAX_NUMBER_OF_CHAR_APPEARANCES} of the same character").into()
+            format!("パスワードは同じ文字を{PASSWORD_MAX_NUMBER_OF_CHAR_APPEARANCES}個より多く含めることはできません。").into()
         ));
     }
 
@@ -91,6 +98,9 @@ fn validate_plain_password(s: &str) -> DomainResult<()> {
 #[derive(Debug, Clone)]
 pub struct PasswordPepper(pub SecretString);
 
+/// PHC文字列正規表現(cspell: disable-next-line)
+const PHC_STRING_EXPRESSION: &str = r#"/^\$argon2id\$v=(?:16|19)\$m=\d{1,10},t=\d{1,10},p=\d{1,3}(?:,keyid=[A-Za-z0-9+/]{0,11}(?:,data=[A-Za-z0-9+/]{0,43})?)?\$[A-Za-z0-9+/]{11,64}\$[A-Za-z0-9+/]{16,86}$/i"#;
+
 /// PHCパスワード文字列
 #[derive(Debug, Clone, DomainPrimitive)]
 pub struct PhcPassword {
@@ -100,10 +110,11 @@ pub struct PhcPassword {
 
 impl PhcPassword {
     pub fn new(value: SecretString) -> DomainResult<Self> {
-        let unwrapped_value = value.expose_secret();
-        if unwrapped_value.is_empty() || 256 < unwrapped_value.len() {
+        let raw_phc = value.expose_secret();
+        let re = Regex::new(PHC_STRING_EXPRESSION).unwrap();
+        if !re.is_match(raw_phc) {
             return Err(DomainError::Validation(
-                "length of phc string is too long or zero".into(),
+                "PHC文字列に設定する文字列がPHC文字列の形式ではありません。".into(),
             ));
         }
 
@@ -133,7 +144,7 @@ pub fn generate_phc_string(
     // https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html
     let params = Params::new(15_000, 2, 1, None).map_err(|e| {
         DomainError::Unexpected(anyhow!(
-            "unexpected error raised when constructing argon2 params: {}",
+            "Argon2パラメーターを構築しているときに、エラーが発生しました。{}",
             e
         ))
     })?;
@@ -142,7 +153,7 @@ pub fn generate_phc_string(
         .hash_password(peppered_password.expose_secret().as_bytes(), &salt)
         .map_err(|e| {
             DomainError::Unexpected(anyhow!(
-                "unexpected error raised when generating phc string by argon2: {}",
+                "Argon2でハッシュ化してPHC文字列を生成するときに、エラーが発生しました。{}",
                 e
             ))
         })?
@@ -172,7 +183,7 @@ pub fn verify_password(
     // PHC文字列をパースしてハッシュ値を取得
     let expected_hash = PasswordHash::new(target_phc.value().expose_secret()).map_err(|e| {
         DomainError::Unexpected(anyhow!(
-            "unexpected error raised when retrieving hash from phc string: {}",
+            "PHC文字列からハッシュ・アルゴリズムを取得するときに、エラーが発生しました。{}",
             e
         ))
     })?;
@@ -222,11 +233,11 @@ pub(crate) mod tests {
         let secret = SecretString::from_str(candidate).unwrap();
         let instance = RawPassword::new(secret);
         match instance {
-            Ok(_) => panic!("password must not construct from short string"),
+            Ok(_) => panic!("password must not construct from short character"),
             Err(err) => {
                 match err {
                     DomainError::DomainRule(_) => {},
-                    _ => panic!("DomainError::DomainRule should be returned when construct raw password from short string")
+                    _ => panic!("DomainError::DomainRule should be returned when construct raw password from short character")
                 }
             }
         }
@@ -239,11 +250,11 @@ pub(crate) mod tests {
         let secret = SecretString::from_str(&candidate).unwrap();
         let instance = RawPassword::new(secret);
         match instance {
-            Ok(_) => panic!("password must not construct from no uppercase alphabet string"),
+            Ok(_) => panic!("password must not construct from no uppercase alphabet character"),
             Err(err) => {
                 match err {
                     DomainError::DomainRule(_) => {},
-                    _ => panic!("DomainError::DomainRule should be returned when construct raw password from no uppercase alphabet string")
+                    _ => panic!("DomainError::DomainRule should be returned when construct raw password from no uppercase alphabet character")
                 }
             }
         }
@@ -256,11 +267,28 @@ pub(crate) mod tests {
         let secret = SecretString::from_str(&candidate).unwrap();
         let instance = RawPassword::new(secret);
         match instance {
-            Ok(_) => panic!("password must not construct from no lowercase alphabet string"),
+            Ok(_) => panic!("password must not construct from no lowercase alphabet character"),
             Err(err) => {
                 match err {
                     DomainError::DomainRule(_) => {},
-                    _ => panic!("DomainError::DomainRule should be returned when construct raw password from no lowercase alphabet string")
+                    _ => panic!("DomainError::DomainRule should be returned when construct raw password from no lowercase alphabet character")
+                }
+            }
+        }
+    }
+
+    /// 数字が含まれていない文字列から、未加工なパスワードを構築できないことを確認
+    #[test]
+    fn can_not_construct_raw_password_from_no_digit_string() {
+        let candidate = VALID_RAW_PASSWORD.replace('3', "a");
+        let secret = SecretString::from_str(&candidate).unwrap();
+        let instance = RawPassword::new(secret);
+        match instance {
+            Ok(_) => panic!("password must not construct from no digit character"),
+            Err(err) => {
+                match err {
+                    DomainError::DomainRule(_) => {},
+                    _ => panic!("DomainError::DomainRule should be returned when construct raw password from no digit character")
                 }
             }
         }
@@ -273,11 +301,11 @@ pub(crate) mod tests {
         let secret = SecretString::from_str(&candidate).unwrap();
         let instance = RawPassword::new(secret);
         match instance {
-            Ok(_) => panic!("password must not construct from no symbol character string"),
+            Ok(_) => panic!("password must not construct from no symbol character"),
             Err(err) => {
                 match err {
                     DomainError::DomainRule(_) => {},
-                    _ => panic!("DomainError::DomainRule should be returned when construct raw password from no symbol character string")
+                    _ => panic!("DomainError::DomainRule should be returned when construct raw password from no symbol character")
                 }
             }
         }
