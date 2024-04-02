@@ -2,9 +2,9 @@ use time::OffsetDateTime;
 
 use macros::{Builder, Getter};
 
-use crate::common::{now_jst, DomainError, DomainResult};
 use crate::models::passwords::PhcPassword;
 use crate::models::primitives::*;
+use crate::{DomainError, DomainResult};
 
 /// ユーザーID
 pub type UserId = EntityId<User>;
@@ -76,57 +76,11 @@ pub struct User {
 fn validate_user(user: &User) -> DomainResult<()> {
     if user.fixed_phone_number.is_none() && user.mobile_phone_number.is_none() {
         return Err(DomainError::DomainRule(
-            "must provide at least a fixed phone number or mobile phone number".into(),
+            "ユーザーは固定電話番号または携帯電話番号を指定する必要があります。".into(),
         ));
     }
 
     Ok(())
-}
-
-impl User {
-    /// ユーザーを構築する。
-    ///
-    /// 作成日時と更新日時は、UTCの現在日時を設定する。
-    #[allow(clippy::too_many_arguments)]
-    pub fn new(
-        id: UserId,
-        email: EmailAddress,
-        password: PhcPassword,
-        active: bool,
-        family_name: FamilyName,
-        given_name: GivenName,
-        postal_code: PostalCode,
-        address: Address,
-        fixed_phone_number: OptionalFixedPhoneNumber,
-        mobile_phone_number: OptionalMobilePhoneNumber,
-        remarks: OptionalRemarks,
-    ) -> DomainResult<Self> {
-        // 固定電話番号または携帯電話番号を指定していない場合はエラー
-        if fixed_phone_number.is_none() && mobile_phone_number.is_none() {
-            return Err(DomainError::DomainRule(
-                "must provide at least a fixed phone number or mobile phone number".into(),
-            ));
-        }
-        // 現在の日時を取得
-        let dt = now_jst();
-
-        Ok(Self {
-            id,
-            email,
-            password,
-            active,
-            family_name,
-            given_name,
-            postal_code,
-            address,
-            fixed_phone_number,
-            mobile_phone_number,
-            remarks,
-            last_logged_in_at: None,
-            created_at: dt,
-            updated_at: dt,
-        })
-    }
 }
 
 #[cfg(test)]
@@ -135,16 +89,17 @@ mod tests {
 
     use super::*;
     use crate::models::passwords::tests::VALID_RAW_PASSWORD;
-    use crate::models::passwords::{generate_phc_string, PasswordPepper, RawPassword};
+    use crate::models::passwords::{generate_phc_string, RawPassword};
+    use crate::now_jst;
 
     /// ユーザーを構築できることを確認
     #[test]
-    fn construct_user_from_valid_args() {
+    fn user_can_build_with_builder() {
         let id = UserId::default();
         let email = EmailAddress::new("foo@example.com").unwrap();
         let plain_password = SecretString::new(String::from(VALID_RAW_PASSWORD));
         let raw_password = RawPassword::new(plain_password).unwrap();
-        let password_pepper = PasswordPepper(SecretString::new(String::from("password-pepper")));
+        let password_pepper = SecretString::new(String::from("password-pepper"));
         let password = generate_phc_string(&raw_password, &password_pepper).unwrap();
         let active = true;
         let family_name = FamilyName::new("foo").unwrap();
@@ -166,22 +121,26 @@ mod tests {
             ),
         ];
         let remarks = OptionalRemarks::try_from("remarks").unwrap();
+        let dt = now_jst();
         for (fixed_phone_number, mobile_phone_number) in phone_number_pairs {
+            let user = UserBuilder::new()
+                .id(id)
+                .email(email.clone())
+                .password(password.clone())
+                .active(active)
+                .family_name(family_name.clone())
+                .given_name(given_name.clone())
+                .postal_code(postal_code.clone())
+                .address(address.clone())
+                .fixed_phone_number(fixed_phone_number.clone())
+                .mobile_phone_number(mobile_phone_number.clone())
+                .remarks(remarks.clone())
+                .created_at(dt)
+                .updated_at(dt)
+                .build();
+
             assert!(
-                User::new(
-                    id,
-                    email.clone(),
-                    password.clone(),
-                    active,
-                    family_name.clone(),
-                    given_name.clone(),
-                    postal_code.clone(),
-                    address.clone(),
-                    fixed_phone_number.clone(),
-                    mobile_phone_number.clone(),
-                    remarks.clone()
-                )
-                .is_ok(),
+                user.is_ok(),
                 "{:?}, {:?}",
                 fixed_phone_number,
                 mobile_phone_number
@@ -191,31 +150,34 @@ mod tests {
 
     /// 固定電話番号と携帯電話番号の両方とも指定していない場合に、ユーザーを構築できないことを確認
     #[test]
-    fn can_not_construct_user_when_both_fixed_phone_number_and_mobile_is_none() {
+    fn user_can_not_build_without_fixed_phone_number_and_mobile_phone_number() {
         let id = UserId::default();
         let email = EmailAddress::new("foo@example.com").unwrap();
         let plain_password = SecretString::new(String::from(VALID_RAW_PASSWORD));
         let raw_password = RawPassword::new(plain_password).unwrap();
-        let password_pepper = PasswordPepper(SecretString::new(String::from("password-pepper")));
+        let password_pepper = SecretString::new(String::from("password-pepper"));
         let password = generate_phc_string(&raw_password, &password_pepper).unwrap();
         let active = true;
         let family_name = FamilyName::new("foo").unwrap();
         let given_name = super::GivenName::new("bar").unwrap();
         let postal_code = PostalCode::new("012-3456").unwrap();
         let address = Address::new("foo bar baz qux").unwrap();
-        assert!(User::new(
-            id,
-            email,
-            password,
-            active,
-            family_name,
-            given_name,
-            postal_code,
-            address,
-            OptionalFixedPhoneNumber::none(),
-            OptionalMobilePhoneNumber::none(),
-            OptionalRemarks::none(),
-        )
-        .is_err());
+        let dt = now_jst();
+        let user = UserBuilder::new()
+            .id(id)
+            .email(email.clone())
+            .password(password.clone())
+            .active(active)
+            .family_name(family_name.clone())
+            .given_name(given_name.clone())
+            .postal_code(postal_code.clone())
+            .address(address.clone())
+            .fixed_phone_number(OptionalFixedPhoneNumber::none())
+            .mobile_phone_number(OptionalMobilePhoneNumber::none())
+            .remarks(OptionalRemarks::none())
+            .created_at(dt)
+            .updated_at(dt)
+            .build();
+        assert!(user.is_err());
     }
 }

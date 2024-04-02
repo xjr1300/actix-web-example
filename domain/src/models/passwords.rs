@@ -10,7 +10,7 @@ use validator::Validate;
 
 use macros::DomainPrimitive;
 
-use crate::common::{DomainError, DomainResult};
+use crate::{DomainError, DomainResult};
 
 /// 未加工なパスワード
 ///
@@ -98,10 +98,6 @@ fn validate_plain_password(s: &str) -> DomainResult<()> {
     Ok(())
 }
 
-/// パスワード・ペッパー
-#[derive(Debug, Clone)]
-pub struct PasswordPepper(pub SecretString);
-
 /// PHC文字列正規表現(cspell: disable-next-line)
 const PHC_STRING_EXPRESSION: &str = r#"^\$argon2id\$v=(?:16|19)\$m=\d{1,10},t=\d{1,10},p=\d{1,3}(?:,keyid=[A-Za-z0-9+/]{0,11}(?:,data=[A-Za-z0-9+/]{0,43})?)?\$[A-Za-z0-9+/]{11,64}\$[A-Za-z0-9+/]{16,86}$"#;
 
@@ -138,7 +134,7 @@ impl PhcPassword {
 /// PHC文字列
 pub fn generate_phc_string(
     raw_password: &RawPassword,
-    pepper: &PasswordPepper,
+    pepper: &SecretString,
 ) -> DomainResult<PhcPassword> {
     // パスワードにペッパーを振りかけ
     let peppered_password = sprinkle_pepper_on_password(raw_password, pepper);
@@ -181,7 +177,7 @@ pub fn generate_phc_string(
 /// パスワードの検証に成功した場合は`true`、それ以外の場合は`false`
 pub fn verify_password(
     raw_password: &RawPassword,
-    pepper: &PasswordPepper,
+    pepper: &SecretString,
     target_phc: &PhcPassword,
 ) -> DomainResult<bool> {
     // PHC文字列をパースしてハッシュ値を取得
@@ -200,12 +196,9 @@ pub fn verify_password(
 }
 
 /// パスワードにコショウを振りかける。
-fn sprinkle_pepper_on_password(
-    raw_password: &RawPassword,
-    pepper: &PasswordPepper,
-) -> SecretString {
+fn sprinkle_pepper_on_password(raw_password: &RawPassword, pepper: &SecretString) -> SecretString {
     let mut password = raw_password.value().expose_secret().to_string();
-    password.push_str(pepper.0.expose_secret());
+    password.push_str(pepper.expose_secret());
 
     SecretString::new(password)
 }
@@ -216,8 +209,8 @@ pub mod tests {
 
     use secrecy::{ExposeSecret as _, SecretString};
 
-    use crate::models::passwords::{generate_phc_string, PasswordPepper, RawPassword};
-    use crate::{common::DomainError, models::passwords::verify_password};
+    use crate::models::passwords::{generate_phc_string, verify_password, RawPassword};
+    use crate::DomainError;
 
     /// 未加工なパスワードとして使用できる文字列
     pub const VALID_RAW_PASSWORD: &str = "Az3#Za3@";
@@ -348,7 +341,7 @@ pub mod tests {
         // PHC文字列を生成
         let raw_password =
             RawPassword::new(SecretString::new(String::from(VALID_RAW_PASSWORD))).unwrap();
-        let pepper = PasswordPepper(SecretString::new(String::from("asdf")));
+        let pepper = SecretString::new(String::from("asdf"));
         let phc_string = generate_phc_string(&raw_password, &pepper).unwrap();
         // 同じパスワードで検証に成功するか確認
         assert!(verify_password(&raw_password, &pepper, &phc_string).unwrap());
@@ -360,7 +353,7 @@ pub mod tests {
         // PHC文字列を生成
         let raw_password =
             RawPassword::new(SecretString::new(String::from(VALID_RAW_PASSWORD))).unwrap();
-        let pepper = PasswordPepper(SecretString::new(String::from("asdf")));
+        let pepper = SecretString::new(String::from("asdf"));
         let phc_string = generate_phc_string(&raw_password, &pepper).unwrap();
         // 同じパスワードで検証に失敗するか確認
         let different_password = "fooBar123%";

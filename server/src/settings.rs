@@ -3,7 +3,7 @@ use std::path::Path;
 use config::{self, Config, FileFormat, FileSourceFile};
 use enum_display::EnumDisplay;
 use log::LevelFilter;
-use secrecy::{ExposeSecret, SecretString};
+use secrecy::{ExposeSecret as _, SecretString};
 use sqlx::postgres::{PgConnectOptions, PgPoolOptions, PgSslMode};
 use sqlx::{ConnectOptions as _, PgPool};
 
@@ -53,6 +53,8 @@ impl From<String> for AppEnvironment {
 pub struct AppSettings {
     /// HTTPサーバー設定
     pub http_server: HttpServerSettings,
+    /// パスワード設定
+    pub password: PasswordSettings,
     /// データベース設定
     pub database: DatabaseSettings,
     /// ロギング設定
@@ -64,6 +66,13 @@ pub struct AppSettings {
 pub struct HttpServerSettings {
     /// リスニング・ポート番号
     pub port: u16,
+}
+
+/// パスワード設定
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct PasswordSettings {
+    /// ペッパー
+    pub pepper: SecretString,
 }
 
 /// データベース設定
@@ -164,6 +173,11 @@ pub fn retrieve_app_settings<P: AsRef<Path>>(
         .add_source(env_settings_file)
         // 環境変数に記録された設定をロード
         .add_source(
+            config::Environment::with_prefix("APP")
+                .prefix_separator("_")
+                .separator("__"),
+        )
+        .add_source(
             config::Environment::with_prefix("POSTGRES")
                 .prefix_separator("_")
                 .separator("__"),
@@ -226,11 +240,17 @@ pub mod tests {
     /// ワークスペース・ディレクトリ内の`.env`ファイルが存在することを想定している。
     #[test]
     fn can_retrieve_app_settings_for_development() -> anyhow::Result<()> {
-        dotenvx::dotenv()?;
         let crate_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
+        let env_file = crate_dir.join("..").join(".env");
+        dotenvx::from_path(env_file)?;
+
         let settings_dir = crate_dir.join("..").join(SETTINGS_DIR_NAME);
         let app_settings = retrieve_app_settings(AppEnvironment::Development, settings_dir)?;
         assert_eq!(8000, app_settings.http_server.port);
+        assert_eq!(
+            "very-long-and-complex-string",
+            app_settings.password.pepper.expose_secret()
+        );
         validate_database_settings(&app_settings.database);
         assert!(!app_settings.database.require_ssl); // SSL接続を要求しない
         assert_eq!(LevelFilter::Trace, app_settings.database.log_statements);
@@ -244,11 +264,17 @@ pub mod tests {
     /// ワークスペース・ディレクトリ内の`.env`ファイルが存在することを想定している。
     #[test]
     fn can_retrieve_app_settings_for_production() -> anyhow::Result<()> {
-        dotenvx::dotenv()?;
-        let dir = Path::new(env!("CARGO_MANIFEST_DIR"));
-        let settings_dir = dir.join("..").join(SETTINGS_DIR_NAME);
+        let crate_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
+        let env_file = crate_dir.join("..").join(".env");
+        dotenvx::from_path(env_file)?;
+
+        let settings_dir = crate_dir.join("..").join(SETTINGS_DIR_NAME);
         let app_settings = retrieve_app_settings(AppEnvironment::Production, settings_dir)?;
         assert_eq!(443, app_settings.http_server.port);
+        assert_eq!(
+            "very-long-and-complex-string",
+            app_settings.password.pepper.expose_secret()
+        );
         validate_database_settings(&app_settings.database);
         assert!(app_settings.database.require_ssl); // SSL接続を要求
         assert_eq!(LevelFilter::Error, app_settings.database.log_statements);

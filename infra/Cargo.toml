@@ -4,16 +4,23 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+actix-web = "4.5.1"
 async-trait = "0.1.79"
 domain = { path = "../domain" }
+macros = { path = "../macros" }
+mime = "0.3.17"
 paste = "1.0.14"
 secrecy = { version = "0.8.0", features = ["alloc", "serde"] }
+serde = { version = "1.0.197", features = ["derive"] }
+serde_json = "1.0.115"
+thiserror = "1.0.58"
 time = { version = "0.3.34", features = [
     "parsing",
     "formatting",
     "serde",
     "macros",
 ] }
+tracing = { version = "0.1.40", features = ["log"] }
 use_cases = { path = "../use_cases" }
 uuid = { version = "1.8.0", features = ["v4", "serde"] }
 
