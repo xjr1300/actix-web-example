@@ -327,7 +327,7 @@ fn impl_builder_build_method(
         Some(func) => {
             let func_ident = format_ident!("{}", func);
             quote!(
-                #func_ident(&#instance)?;
+                #instance.#func_ident()?;
             )
         }
         None => quote!(),

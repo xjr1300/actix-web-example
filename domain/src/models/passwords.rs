@@ -8,8 +8,6 @@ use regex::Regex;
 use secrecy::{ExposeSecret as _, SecretString};
 use validator::Validate;
 
-use macros::DomainPrimitive;
-
 use crate::{DomainError, DomainResult};
 
 /// 未加工なパスワード
@@ -22,10 +20,9 @@ use crate::{DomainError, DomainResult};
 /// * 次の記号を1つ以上含む
 ///   * ~`!@#$%^&*()_-+={[}]|\:;"'<,>.?/
 /// * 同じ文字が4つ以上ない
-#[derive(Debug, Clone, Validate, DomainPrimitive)]
+#[derive(Debug, Clone, Validate)]
 pub struct RawPassword {
-    #[value_getter(ret = "ref")]
-    value: SecretString,
+    pub value: SecretString,
 }
 
 impl RawPassword {
@@ -102,10 +99,9 @@ fn validate_plain_password(s: &str) -> DomainResult<()> {
 const PHC_STRING_EXPRESSION: &str = r#"^\$argon2id\$v=(?:16|19)\$m=\d{1,10},t=\d{1,10},p=\d{1,3}(?:,keyid=[A-Za-z0-9+/]{0,11}(?:,data=[A-Za-z0-9+/]{0,43})?)?\$[A-Za-z0-9+/]{11,64}\$[A-Za-z0-9+/]{16,86}$"#;
 
 /// PHCパスワード文字列
-#[derive(Debug, Clone, DomainPrimitive)]
+#[derive(Debug, Clone)]
 pub struct PhcPassword {
-    #[value_getter(ret = "ref")]
-    value: SecretString,
+    pub value: SecretString,
 }
 
 impl PhcPassword {
@@ -181,7 +177,7 @@ pub fn verify_password(
     target_phc: &PhcPassword,
 ) -> DomainResult<bool> {
     // PHC文字列をパースしてハッシュ値を取得
-    let expected_hash = PasswordHash::new(target_phc.value().expose_secret()).map_err(|e| {
+    let expected_hash = PasswordHash::new(target_phc.value.expose_secret()).map_err(|e| {
         DomainError::Unexpected(anyhow!(
             "PHC文字列からハッシュ・アルゴリズムを取得するときに、エラーが発生しました。{}",
             e
@@ -197,7 +193,7 @@ pub fn verify_password(
 
 /// パスワードにコショウを振りかける。
 fn sprinkle_pepper_on_password(raw_password: &RawPassword, pepper: &SecretString) -> SecretString {
-    let mut password = raw_password.value().expose_secret().to_string();
+    let mut password = raw_password.value.expose_secret().to_string();
     password.push_str(pepper.expose_secret());
 
     SecretString::new(password)
@@ -224,7 +220,7 @@ pub mod tests {
     fn construct_raw_password_from_valid_string() {
         let secret = SecretString::from_str(VALID_RAW_PASSWORD).unwrap();
         let instance = RawPassword::new(secret).unwrap();
-        assert_eq!(VALID_RAW_PASSWORD, instance.value().expose_secret());
+        assert_eq!(VALID_RAW_PASSWORD, instance.value.expose_secret());
     }
 
     /// 文字数が足りない文字列から、未加工なパスワードを構築できないことを確認

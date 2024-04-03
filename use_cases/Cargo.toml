@@ -10,4 +10,11 @@ macros = { path = "../macros" }
 secrecy = { version = "0.8.0", features = ["alloc", "serde"] }
 serde = { version = "1.0.197", features = ["derive"] }
 thiserror = "1.0.58"
+time = { version = "0.3.34", features = [
+    "parsing",
+    "formatting",
+    "serde",
+    "macros",
+] }
 tracing = { version = "0.1.40", features = ["log"] }
+uuid = { version = "1.8.0", features = ["v4", "serde"] }

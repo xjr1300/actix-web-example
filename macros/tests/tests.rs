@@ -1,60 +1,13 @@
 use validator::Validate;
 
 use domain::{DomainError, DomainResult};
-use macros::{DomainPrimitive, OptionalStringPrimitive, PrimitiveDisplay, StringPrimitive};
-
-/// `value`メソッドが値を返すドメイン・プリミティブを実装できることを確認
-#[test]
-fn value_method_returns_value_domain_primitive_works() {
-    #[derive(DomainPrimitive)]
-    struct TestStruct {
-        #[value_getter(ret = "val")]
-        value: i32,
-    }
-
-    let s = TestStruct { value: 42 };
-
-    assert_eq!(42, s.value());
-}
-
-/// `value`メソッドが参照を返すドメイン・プリミティブを実装できることを確認
-#[test]
-fn value_method_returns_reference_domain_primitive_works() {
-    #[derive(DomainPrimitive)]
-    struct TestStruct {
-        #[value_getter(ret = "ref")]
-        value: String,
-    }
-
-    let s = TestStruct {
-        value: String::from("spam"),
-    };
-
-    assert_eq!(&String::from("spam"), s.value());
-}
-
-/// `value`メソッドが別の参照を返すドメイン・プリミティブを実装できることを確認
-#[test]
-fn value_method_returns_another_reference_domain_primitive_works() {
-    #[derive(DomainPrimitive)]
-    struct TestStruct {
-        #[value_getter(ret = "ref", rty = "&str")]
-        value: String,
-    }
-
-    let s = TestStruct {
-        value: "spam".to_string(),
-    };
-
-    assert_eq!("spam", s.value());
-}
+use macros::{OptionalStringPrimitive, PrimitiveDisplay, StringPrimitive};
 
 /// `Display`トレイトを実装したドメイン・プリミティブを実装できることを確認
 #[test]
 fn primitive_display_works() {
-    #[derive(DomainPrimitive, PrimitiveDisplay)]
+    #[derive(PrimitiveDisplay)]
     struct TestStruct {
-        #[value_getter(ret = "val")]
         value: i32,
     }
 
@@ -63,13 +16,12 @@ fn primitive_display_works() {
     assert_eq!("42", format!("{}", s));
 }
 
-#[derive(Validate, DomainPrimitive, StringPrimitive)]
+#[derive(Validate, StringPrimitive)]
 #[primitive(
     name = "プリミティブ名",
     message = "10文字以上20文字以下の文字列を指定してください。"
 )]
 struct TestStringPrimitive {
-    #[value_getter(ret = "ref", rty = "&str")]
     #[validate(length(min = 10, max = 20,))]
     value: String,
 }
@@ -81,7 +33,7 @@ fn string_primitive_can_be_constructed_from_valid_length_characters() {
         value: String::from("spam"),
     };
 
-    assert_eq!(&String::from("spam"), s.value());
+    assert_eq!("spam", s.value);
 }
 
 /// 前後の空白文字をトリムして文字列プリミティブを構築できることを確認
@@ -94,7 +46,7 @@ fn constructed_string_primitive_was_removed_blank_characters_from_the_beginning_
     ];
     for candidate in candidates {
         let s = TestStringPrimitive::new(candidate).unwrap();
-        assert_eq!(&String::from("foo bar baz qux quux"), s.value());
+        assert_eq!("foo bar baz qux quux", s.value);
     }
 }
 
