@@ -1,6 +1,7 @@
 use time::OffsetDateTime;
 
-use macros::{Builder, Getter};
+use macros::{Builder, PrimitiveDisplay, StringPrimitive};
+use validator::Validate;
 
 use crate::models::passwords::PhcPassword;
 use crate::models::primitives::*;
@@ -26,61 +27,101 @@ pub type UserId = EntityId<User>;
 ///
 /// ユーザーを登録するとき、PostgresSQLの場合、作成日時と更新日時に`STATEMENT_TIMESTAMP()`を使用して、
 /// 同じ日時が記録されるようにする。
-#[derive(Debug, Clone, Getter, Builder)]
+#[derive(Debug, Clone, Builder)]
 #[builder_validation(func = "validate_user")]
 pub struct User {
     /// ユーザーID
-    #[getter(ret = "val")]
-    id: UserId,
+    pub id: UserId,
     /// Eメール・アドレス
-    #[getter(ret = "ref")]
-    email: EmailAddress,
+    pub email: EmailAddress,
     /// パスワード（PHC文字列）
-    #[getter(ret = "ref")]
-    password: PhcPassword,
+    pub password: PhcPassword,
     /// アクティブ・フラグ
-    #[getter(ret = "val")]
-    active: bool,
+    pub active: bool,
+    /// ユーザー権限
+    pub user_permission: UserPermission,
     /// 苗字
-    #[getter(ret = "ref")]
-    family_name: FamilyName,
+    pub family_name: FamilyName,
     /// 名前
-    #[getter(ret = "ref")]
-    given_name: GivenName,
+    pub given_name: GivenName,
     /// 郵便番号
-    #[getter(ret = "ref")]
-    postal_code: PostalCode,
+    pub postal_code: PostalCode,
     /// 住所
-    #[getter(ret = "ref")]
-    address: Address,
+    pub address: Address,
     /// 固定電話番号
-    #[getter(ret = "ref")]
-    fixed_phone_number: OptionalFixedPhoneNumber,
+    pub fixed_phone_number: OptionalFixedPhoneNumber,
     /// 携帯電話番号
-    #[getter(ret = "ref")]
-    mobile_phone_number: OptionalMobilePhoneNumber,
+    pub mobile_phone_number: OptionalMobilePhoneNumber,
     /// 備考
-    #[getter(ret = "ref")]
-    remarks: OptionalRemarks,
+    pub remarks: OptionalRemarks,
     /// 最終ログイン日時
-    #[getter(ret = "val")]
-    last_logged_in_at: Option<OffsetDateTime>,
+    pub last_logged_in_at: Option<OffsetDateTime>,
     /// 作成日時
-    #[getter(ret = "val")]
-    created_at: OffsetDateTime,
+    pub created_at: OffsetDateTime,
     /// 更新日時
-    #[getter(ret = "val")]
-    updated_at: OffsetDateTime,
+    pub updated_at: OffsetDateTime,
 }
 
-fn validate_user(user: &User) -> DomainResult<()> {
-    if user.fixed_phone_number.is_none() && user.mobile_phone_number.is_none() {
-        return Err(DomainError::DomainRule(
-            "ユーザーは固定電話番号または携帯電話番号を指定する必要があります。".into(),
-        ));
-    }
+pub trait UserValidator {
+    fn fixed_phone_number(&self) -> &OptionalFixedPhoneNumber;
+    fn mobile_phone_number(&self) -> &OptionalMobilePhoneNumber;
+    fn validate_user(&self) -> DomainResult<()> {
+        if self.fixed_phone_number().is_none() && self.mobile_phone_number().is_none() {
+            return Err(DomainError::DomainRule(
+                "ユーザーは固定電話番号または携帯電話番号を指定する必要があります。".into(),
+            ));
+        }
 
-    Ok(())
+        Ok(())
+    }
+}
+
+impl UserValidator for User {
+    fn fixed_phone_number(&self) -> &OptionalFixedPhoneNumber {
+        &self.fixed_phone_number
+    }
+    fn mobile_phone_number(&self) -> &OptionalMobilePhoneNumber {
+        &self.mobile_phone_number
+    }
+}
+
+/// ユーザー権限コード
+pub type UserPermissionCode = NumericCode<UserPermission, i16>;
+
+/// ユーザー権限
+#[derive(Debug, Clone)]
+pub struct UserPermission {
+    /// ユーザー権限コード
+    pub code: UserPermissionCode,
+    /// ユーザー権限名
+    pub name: UserPermissionName,
+}
+
+impl UserPermission {
+    /// ユーザー権限を構築する。
+    ///
+    /// # 引数
+    ///
+    /// * `code` - ユーザー権限コード
+    /// * `name` - ユーザー権限名
+    ///
+    /// # 戻り値
+    ///
+    /// ユーザー権限
+    pub fn new(code: UserPermissionCode, name: UserPermissionName) -> Self {
+        Self { code, name }
+    }
+}
+
+/// ユーザー権限名
+#[derive(Debug, Clone, Validate, PrimitiveDisplay, StringPrimitive)]
+#[primitive(
+    name = "ユーザー権限名",
+    message = "ユーザー権限名は1文字以上20文字以下です。"
+)]
+pub struct UserPermissionName {
+    #[validate(length(max = 20))]
+    pub value: String,
 }
 
 #[cfg(test)]
@@ -102,6 +143,10 @@ mod tests {
         let password_pepper = SecretString::new(String::from("password-pepper"));
         let password = generate_phc_string(&raw_password, &password_pepper).unwrap();
         let active = true;
+        let user_permission = UserPermission::new(
+            UserPermissionCode::new(1),
+            UserPermissionName::new("管理者").unwrap(),
+        );
         let family_name = FamilyName::new("foo").unwrap();
         let given_name = super::GivenName::new("bar").unwrap();
         let postal_code = PostalCode::new("012-3456").unwrap();
@@ -128,6 +173,7 @@ mod tests {
                 .email(email.clone())
                 .password(password.clone())
                 .active(active)
+                .user_permission(user_permission.clone())
                 .family_name(family_name.clone())
                 .given_name(given_name.clone())
                 .postal_code(postal_code.clone())
@@ -158,6 +204,10 @@ mod tests {
         let password_pepper = SecretString::new(String::from("password-pepper"));
         let password = generate_phc_string(&raw_password, &password_pepper).unwrap();
         let active = true;
+        let user_permission = UserPermission::new(
+            UserPermissionCode::new(1),
+            UserPermissionName::new("管理者").unwrap(),
+        );
         let family_name = FamilyName::new("foo").unwrap();
         let given_name = super::GivenName::new("bar").unwrap();
         let postal_code = PostalCode::new("012-3456").unwrap();
@@ -168,6 +218,7 @@ mod tests {
             .email(email.clone())
             .password(password.clone())
             .active(active)
+            .user_permission(user_permission)
             .family_name(family_name.clone())
             .given_name(given_name.clone())
             .postal_code(postal_code.clone())

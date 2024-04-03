@@ -2,6 +2,7 @@ use std::net::TcpListener;
 use std::path::Path;
 
 use anyhow::Context as _;
+use domain::models::user::{UserPermission, UserPermissionCode, UserPermissionName};
 use once_cell::sync::Lazy;
 use reqwest::header::{HeaderValue, CONTENT_TYPE};
 use secrecy::SecretString;
@@ -48,7 +49,7 @@ impl TestApp {
         let client = reqwest::Client::new();
 
         client
-            .post(&format!("{}/accounts/signup", self.root_uri))
+            .post(&format!("{}/accounts/sign-up", self.root_uri))
             .body(body)
             .header(CONTENT_TYPE, HeaderValue::from_static("application/json"))
             .send()
@@ -137,6 +138,13 @@ pub fn generate_phc_password() -> PhcPassword {
     PhcPassword::new(SecretString::new(String::from(RAW_PHC_PASSWORD))).unwrap()
 }
 
+pub fn generate_user_permission() -> UserPermission {
+    UserPermission::new(
+        UserPermissionCode::new(1),
+        UserPermissionName::new("管理者").unwrap(),
+    )
+}
+
 pub fn generate_family_name() -> FamilyName {
     FamilyName::new("山田").unwrap()
 }
@@ -172,6 +180,7 @@ pub fn generate_user(id: UserId, email: EmailAddress) -> User {
         .email(email)
         .password(generate_phc_password())
         .active(true)
+        .user_permission(generate_user_permission())
         .family_name(generate_family_name())
         .given_name(generate_given_name())
         .postal_code(generate_postal_code())
@@ -191,6 +200,7 @@ pub fn signup_request_body_json() -> String {
         {{
             "email": "foo@example.com",
             "password": "{}",
+            "userPermissionCode": 1,
             "familyName": "山田",
             "givenName": "太郎",
             "postalCode": "899-7103",

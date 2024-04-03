@@ -9,8 +9,6 @@ use actix_web::middleware::ErrorHandlerResponse;
 use actix_web::{HttpResponse, Responder, ResponseError};
 use mime::Mime;
 
-use domain::DomainError;
-
 /// リクエスト処理結果
 pub type ProcessRequestResult<T> = Result<T, ProcessRequestError>;
 
@@ -56,30 +54,6 @@ impl std::fmt::Display for ProcessRequestError {
             }
             None => {
                 write!(f, "status_code={}, {}", self.status_code, self.body)
-            }
-        }
-    }
-}
-
-/// ドメイン層で発生したエラーをリクエスト処理エラーに変換する。
-impl From<DomainError> for ProcessRequestError {
-    fn from(value: DomainError) -> Self {
-        match value {
-            DomainError::Unexpected(err) | DomainError::Repository(err) => ProcessRequestError {
-                status_code: StatusCode::INTERNAL_SERVER_ERROR,
-                body: ErrorResponseBody {
-                    error_code: None,
-                    message: format!("{err}").into(),
-                },
-            },
-            DomainError::Validation(message) | DomainError::DomainRule(message) => {
-                ProcessRequestError {
-                    status_code: StatusCode::BAD_REQUEST,
-                    body: ErrorResponseBody {
-                        error_code: None,
-                        message,
-                    },
-                }
             }
         }
     }

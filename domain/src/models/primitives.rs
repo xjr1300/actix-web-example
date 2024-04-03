@@ -4,7 +4,7 @@ use once_cell::sync::Lazy;
 use regex::Regex;
 use uuid::Uuid;
 
-use macros::{DomainPrimitive, OptionalStringPrimitive, PrimitiveDisplay, StringPrimitive};
+use macros::{OptionalStringPrimitive, PrimitiveDisplay, StringPrimitive};
 use validator::Validate;
 
 use crate::{DomainError, DomainResult};
@@ -13,10 +13,9 @@ use crate::{DomainError, DomainResult};
 ///
 /// UUID v4でエンティティを識別するIDを表現する。
 /// `PhantomData`でエンティティの型を識別する。
-#[derive(Debug, PartialEq, Eq, Hash, DomainPrimitive)]
+#[derive(Debug)]
 pub struct EntityId<T> {
-    #[value_getter(ret = "val")]
-    value: Uuid,
+    pub value: Uuid,
     _phantom: PhantomData<T>,
 }
 
@@ -59,8 +58,68 @@ impl<T> std::fmt::Display for EntityId<T> {
     }
 }
 
+impl<T> PartialEq for EntityId<T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.value == other.value
+    }
+}
+
+impl<T> Eq for EntityId<T> {}
+
+impl<T> std::hash::Hash for EntityId<T> {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.value.hash(state);
+        self._phantom.hash(state);
+    }
+}
+
 impl<T> EntityId<T> {
     pub fn new(value: Uuid) -> Self {
+        Self {
+            value,
+            _phantom: Default::default(),
+        }
+    }
+}
+
+/// コード
+///
+/// ジェネリック引数`T1`はコード・テーブルの型を指定する。
+/// ジェネリック引数`T2`はコードの型を指定する。
+#[derive(Debug, PartialEq, Eq, Hash)]
+pub struct NumericCode<T1, T2>
+where
+    T2: Clone + Copy,
+{
+    pub value: T2,
+    _phantom: PhantomData<T1>,
+}
+
+impl<T1, T2: Clone + Copy> From<T2> for NumericCode<T1, T2> {
+    fn from(value: T2) -> Self {
+        Self {
+            value,
+            _phantom: Default::default(),
+        }
+    }
+}
+
+impl<T1, T2: Clone + Copy> Copy for NumericCode<T1, T2> {}
+
+impl<T1, T2: Clone + Copy> Clone for NumericCode<T1, T2> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<T1, T2: Clone + Copy + std::fmt::Display> std::fmt::Display for NumericCode<T1, T2> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.value)
+    }
+}
+
+impl<T1, T2: Clone + Copy> NumericCode<T1, T2> {
+    pub fn new(value: T2) -> Self {
         Self {
             value,
             _phantom: Default::default(),
@@ -77,7 +136,7 @@ const EMAIL_ADDRESS_MIN_LEN: u64 = 6;
 const EMAIL_ADDRESS_MAX_LEN: u64 = 254;
 
 /// Eメール・アドレス
-#[derive(Debug, Clone, Validate, DomainPrimitive, PrimitiveDisplay, StringPrimitive)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Validate, PrimitiveDisplay, StringPrimitive)]
 #[primitive(
     name = "Eメール・アドレス",
     message = "Eメール・アドレスの形式が間違っています。"
@@ -85,32 +144,29 @@ const EMAIL_ADDRESS_MAX_LEN: u64 = 254;
 pub struct EmailAddress {
     #[validate(email)]
     #[validate(length(min = EMAIL_ADDRESS_MIN_LEN, max = EMAIL_ADDRESS_MAX_LEN))]
-    #[value_getter(ret = "ref", rty = "&str")]
-    value: String,
+    pub value: String,
 }
 
 /// ユーザーの氏名の性
-#[derive(Debug, Clone, Validate, DomainPrimitive, PrimitiveDisplay, StringPrimitive)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Validate, PrimitiveDisplay, StringPrimitive)]
 #[primitive(
     name = "ユーザーの氏名の姓",
     message = "ユーザーの氏名の姓は1文字以上40文字以下です。"
 )]
 pub struct FamilyName {
     #[validate(length(min = 1, max = 40))]
-    #[value_getter(ret = "ref", rty = "&str")]
-    value: String,
+    pub value: String,
 }
 
 /// ユーザーの氏名の名
-#[derive(Debug, Clone, Validate, DomainPrimitive, PrimitiveDisplay, StringPrimitive)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Validate, PrimitiveDisplay, StringPrimitive)]
 #[primitive(
     name = "ユーザーの氏名の名",
     message = "ユーザーの氏名の名は1文字以上40文字以下です。"
 )]
 pub struct GivenName {
     #[validate(length(min = 1, max = 40))]
-    #[value_getter(ret = "ref", rty = "&str")]
-    value: String,
+    pub value: String,
 }
 
 /// 郵便番号の正規表現
@@ -118,21 +174,19 @@ static POSTAL_CODE_EXPRESSION: Lazy<Regex> =
     Lazy::new(|| Regex::new(r"^[0-9]{3}-[0-9]{4}$").unwrap());
 
 /// 郵便番号
-#[derive(Debug, Clone, Validate, DomainPrimitive, PrimitiveDisplay, StringPrimitive)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Validate, PrimitiveDisplay, StringPrimitive)]
 #[primitive(name = "郵便番号", message = "郵便番号の形式が間違っています。")]
 pub struct PostalCode {
     #[validate(regex(path = "*POSTAL_CODE_EXPRESSION",))]
-    #[value_getter(ret = "ref", rty = "&str")]
-    value: String,
+    pub value: String,
 }
 
 /// 住所
-#[derive(Debug, Clone, Validate, DomainPrimitive, PrimitiveDisplay, StringPrimitive)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Validate, PrimitiveDisplay, StringPrimitive)]
 #[primitive(name = "住所", message = "住所は1文字以上80文字未満です。")]
 pub struct Address {
     #[validate(length(min = 1, max = 80))]
-    #[value_getter(ret = "ref", rty = "&str")]
-    value: String,
+    pub value: String,
 }
 
 /// 固定電話番号
@@ -185,7 +239,7 @@ mod tests {
         let candidates = ["a@a.jp", "foo@example.com"];
         for candidate in candidates {
             let instance = EmailAddress::new(candidate).unwrap();
-            assert_eq!(candidate, instance.value());
+            assert_eq!(candidate, instance.value);
         }
     }
 
@@ -225,7 +279,7 @@ mod tests {
         let expected = "family_name";
         for candidate in candidates {
             let instance = FamilyName::new(candidate).unwrap();
-            assert_eq!(expected, instance.value(), "`{}`", candidate);
+            assert_eq!(expected, instance.value, "`{}`", candidate);
         }
     }
 
@@ -244,7 +298,7 @@ mod tests {
         let candidates = ["000-0000", "123-4567", "999-9999"];
         for expected in candidates {
             let instance = PostalCode::new(expected).unwrap();
-            assert_eq!(expected, instance.value(), "`{}`", expected);
+            assert_eq!(expected, instance.value, "`{}`", expected);
         }
     }
 

@@ -1,51 +1,18 @@
 use secrecy::SecretString;
 
-use domain::models::passwords::generate_phc_string;
-use domain::models::passwords::RawPassword;
+use domain::models::passwords::{generate_phc_string, RawPassword};
 use domain::models::primitives::*;
-use domain::models::user::{User, UserBuilder, UserId};
-use domain::now_jst;
-use domain::repositories::user::UserRepository;
-use macros::{Builder, Getter};
+use domain::models::user::{UserId, UserPermissionCode};
+use domain::repositories::user::{SignUpUserBuilder, SignedUpUser, UserRepository};
+use macros::Builder;
 
 use crate::{ProcessUseCaseResult, UseCaseError};
-
-#[derive(Debug, Clone, Getter, Builder)]
-pub struct SignupUser {
-    /// Eメールアドレス
-    #[getter(ret = "ref")]
-    email: EmailAddress,
-    /// 未加工なパスワード
-    #[getter(ret = "ref")]
-    password: RawPassword,
-    /// 苗字
-    #[getter(ret = "ref")]
-    family_name: FamilyName,
-    /// 名前
-    #[getter(ret = "ref")]
-    given_name: GivenName,
-    /// 郵便番号
-    #[getter(ret = "ref")]
-    postal_code: PostalCode,
-    /// 住所
-    #[getter(ret = "ref")]
-    address: Address,
-    /// 固定電話番号
-    #[getter(ret = "ref")]
-    fixed_phone_number: OptionalFixedPhoneNumber,
-    /// 携帯電話番号
-    #[getter(ret = "ref")]
-    mobile_phone_number: OptionalMobilePhoneNumber,
-    /// 備考
-    #[getter(ret = "ref")]
-    remarks: OptionalRemarks,
-}
 
 /// ユーザーを登録する。
 ///
 /// # 引数
 ///
-/// * `signup_user` - 登録するユーザー
+/// * `user` - 登録するユーザー
 /// * `pepper` - 未加工なパスワードに付与するペッパー
 /// * `repository` - ユーザー・リポジトリ
 ///
@@ -53,41 +20,55 @@ pub struct SignupUser {
 ///
 /// * 登録したユーザー
 #[tracing::instrument(
-    name = "signup use case", skip(signup_user, pepper, repository),
-    fields(user.email = %signup_user.email())
+    name = "sign up use case", skip(input, repository),
+    fields(user.email = %input.email)
 )]
-pub async fn signup(
-    signup_user: SignupUser,
+pub async fn sign_up(
+    input: SignUpInput,
     pepper: &SecretString,
     repository: impl UserRepository,
-) -> ProcessUseCaseResult<User> {
-    // 現在日時を取得
-    let dt = now_jst();
-    // パスワードをハッシュ化
-    let phc_password = generate_phc_string(&signup_user.password, pepper)
+) -> ProcessUseCaseResult<SignedUpUser> {
+    let email =
+        EmailAddress::new(input.email).map_err(|e| UseCaseError::validation(e.to_string()))?;
+    let user_permission_code = UserPermissionCode::new(input.user_permission_code);
+    let password =
+        RawPassword::new(input.password).map_err(|e| UseCaseError::validation(e.to_string()))?;
+    let password = generate_phc_string(&password, pepper)
         .map_err(|e| UseCaseError::unexpected(e.to_string()))?;
-    // ユーザーを構築
-    let user = UserBuilder::new()
+    let family_name =
+        FamilyName::new(input.family_name).map_err(|e| UseCaseError::validation(e.to_string()))?;
+    let given_name =
+        GivenName::new(input.given_name).map_err(|e| UseCaseError::validation(e.to_string()))?;
+    let postal_code =
+        PostalCode::new(input.postal_code).map_err(|e| UseCaseError::validation(e.to_string()))?;
+    let address =
+        Address::new(input.address).map_err(|e| UseCaseError::validation(e.to_string()))?;
+    let fixed_phone_number = OptionalFixedPhoneNumber::try_from(input.fixed_phone_number)
+        .map_err(|e| UseCaseError::validation(e.to_string()))?;
+    let mobile_phone_number = OptionalMobilePhoneNumber::try_from(input.mobile_phone_number)
+        .map_err(|e| UseCaseError::validation(e.to_string()))?;
+    let remarks = OptionalRemarks::try_from(input.remarks)
+        .map_err(|e| UseCaseError::validation(e.to_string()))?;
+
+    let user = SignUpUserBuilder::new()
         .id(UserId::default())
-        .email(signup_user.email.to_owned())
-        .password(phc_password)
+        .email(email)
+        .password(password)
         .active(true)
-        .family_name(signup_user.family_name.to_owned())
-        .given_name(signup_user.given_name.to_owned())
-        .postal_code(signup_user.postal_code.to_owned())
-        .address(signup_user.address.to_owned())
-        .fixed_phone_number(signup_user.fixed_phone_number.to_owned())
-        .mobile_phone_number(signup_user.mobile_phone_number.to_owned())
-        .remarks(signup_user.remarks.to_owned())
-        .last_logged_in_at(None)
-        .created_at(dt)
-        .updated_at(dt)
+        .user_permission_code(user_permission_code)
+        .family_name(family_name)
+        .given_name(given_name)
+        .postal_code(postal_code)
+        .address(address)
+        .fixed_phone_number(fixed_phone_number)
+        .mobile_phone_number(mobile_phone_number)
+        .remarks(remarks)
         .build()
         .map_err(|e| UseCaseError::domain_rule(e.to_string()))?;
 
     // ユーザーを登録
     match repository.create(user).await {
-        Ok(created_user) => Ok(created_user),
+        Ok(signed_up_user) => Ok(signed_up_user),
         Err(e) => {
             let message = e.to_string();
             match message.contains("ak_users_email") {
@@ -98,4 +79,34 @@ pub async fn signup(
             }
         }
     }
+}
+
+/// サインアップ・リクエスト・ボディ
+///
+/// ```json
+/// {"email": "foo@example.com", "password": "p@ssw0rd", "userPermissionCode": 1, "familyName": "Yamada", "givenName": "Taro", "postalCode": "899-7103", "address": "鹿児島県志布志市志布志町志布志2-1-1", "fixedPhoneNumber": "099-472-1111", "mobilePhoneNumber": "090-1234-5678", "remarks": "日本に実際に存在するややこしい地名です。"}
+/// ```
+#[derive(Debug, Clone, serde::Deserialize, Builder)]
+#[serde(rename_all = "camelCase")]
+pub struct SignUpInput {
+    /// Eメールアドレス
+    pub email: String,
+    /// 未加工なパスワード
+    pub password: SecretString,
+    /// ユーザー権限コード
+    pub user_permission_code: i16,
+    /// 苗字
+    pub family_name: String,
+    /// 名前
+    pub given_name: String,
+    /// 郵便番号
+    pub postal_code: String,
+    /// 住所
+    pub address: String,
+    /// 固定電話番号
+    pub fixed_phone_number: Option<String>,
+    /// 携帯電話番号
+    pub mobile_phone_number: Option<String>,
+    /// 備考
+    pub remarks: Option<String>,
 }
