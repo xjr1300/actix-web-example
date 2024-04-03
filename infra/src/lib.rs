@@ -10,7 +10,9 @@ use repositories::postgres::user::PgUserRepository;
 /// リクエスト・コンテキスト
 #[derive(Debug, Clone)]
 pub struct RequestContext {
+    /// パスワードに振りかけるペッパー
     pub pepper: SecretString,
+    /// データベース接続プール
     pool: PgPool,
 }
 
