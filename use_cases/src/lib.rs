@@ -1,5 +1,7 @@
 use std::borrow::Cow;
 
+use enum_display::EnumDisplay;
+
 pub mod accounts;
 
 pub type ProcessUseCaseResult<T> = Result<T, UseCaseError>;
@@ -15,7 +17,8 @@ pub enum UseCaseErrorCode {
 }
 
 /// ユース・ケース・エラー分類
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EnumDisplay)]
+#[enum_display(case = "Lower")]
 pub enum UseCaseErrorKind {
     /// 予期していないエラー
     ///
@@ -37,18 +40,6 @@ pub enum UseCaseErrorKind {
     ///
     /// アプリケーションエラーコードは常に3とする。
     Repository,
-}
-
-impl std::fmt::Display for UseCaseErrorKind {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let s = match *self {
-            UseCaseErrorKind::Unexpected => "unexpected",
-            UseCaseErrorKind::Validation => "validation",
-            UseCaseErrorKind::DomainRule => "domain_rule",
-            UseCaseErrorKind::Repository => "repository",
-        };
-        write!(f, "{}", s)
-    }
 }
 
 /// ユース・ケース・エラー
