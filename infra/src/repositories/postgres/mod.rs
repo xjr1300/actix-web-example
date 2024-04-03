@@ -6,6 +6,7 @@ use sqlx::{PgPool, Postgres, Transaction};
 
 use domain::{DomainError, DomainResult};
 
+/// PostgreSQLトランザクション型
 pub type PgTransaction<'c> = Transaction<'c, Postgres>;
 
 /// PostgreSQLリポジトリ構造体
@@ -13,12 +14,12 @@ pub type PgTransaction<'c> = Transaction<'c, Postgres>;
 pub struct PgRepository<T> {
     /// データベース接続プール
     pub pool: PgPool,
-    /// マーカー。
+    /// マーカー
     _phantom: PhantomData<T>,
 }
 
 impl<T> PgRepository<T> {
-    /// PostgreSQLリポジトリをこうチックする。
+    /// PostgreSQLリポジトリを構築する。
     ///
     /// # 引数
     ///
@@ -170,9 +171,9 @@ pub async fn commit_transaction(tx: PgTransaction<'_>) -> DomainResult<()> {
         .map_err(|e| DomainError::Repository(e.into()))
 }
 
-/// トランザクションをコミットする。
+/// トランザクションをロールバックする。
 ///
-/// FIXME: ロールバックを呼び出さない場合は削除する。
+/// FIXME: ロールバックをトランザクションのドロップでするなど、この関数を呼び出さない場合は削除する。
 ///
 /// # 引数
 ///
