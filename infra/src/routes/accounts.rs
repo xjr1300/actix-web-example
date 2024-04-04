@@ -2,6 +2,7 @@ use actix_web::http::StatusCode;
 use actix_web::{web, HttpResponse};
 use domain::models::passwords::{generate_phc_string, RawPassword};
 use domain::models::user::{UserId, UserPermissionCode};
+use domain::DomainError;
 use secrecy::SecretString;
 use time::OffsetDateTime;
 use uuid::Uuid;
@@ -27,27 +28,19 @@ pub async fn sign_up(
     let input = request_body.0;
     let pepper = &context.pepper;
 
-    let email =
-        EmailAddress::new(input.email).map_err(|e| UseCaseError::validation(e.to_string()))?;
+    let email = EmailAddress::new(input.email).map_err(ProcessRequestError::from)?;
     let user_permission_code = UserPermissionCode::new(input.user_permission_code);
-    let password =
-        RawPassword::new(input.password).map_err(|e| UseCaseError::validation(e.to_string()))?;
-    let password = generate_phc_string(&password, pepper)
-        .map_err(|e| UseCaseError::unexpected(e.to_string()))?;
-    let family_name =
-        FamilyName::new(input.family_name).map_err(|e| UseCaseError::validation(e.to_string()))?;
-    let given_name =
-        GivenName::new(input.given_name).map_err(|e| UseCaseError::validation(e.to_string()))?;
-    let postal_code =
-        PostalCode::new(input.postal_code).map_err(|e| UseCaseError::validation(e.to_string()))?;
-    let address =
-        Address::new(input.address).map_err(|e| UseCaseError::validation(e.to_string()))?;
+    let password = RawPassword::new(input.password).map_err(ProcessRequestError::from)?;
+    let password = generate_phc_string(&password, pepper).map_err(ProcessRequestError::from)?;
+    let family_name = FamilyName::new(input.family_name).map_err(ProcessRequestError::from)?;
+    let given_name = GivenName::new(input.given_name).map_err(ProcessRequestError::from)?;
+    let postal_code = PostalCode::new(input.postal_code).map_err(ProcessRequestError::from)?;
+    let address = Address::new(input.address).map_err(ProcessRequestError::from)?;
     let fixed_phone_number = OptionalFixedPhoneNumber::try_from(input.fixed_phone_number)
-        .map_err(|e| UseCaseError::validation(e.to_string()))?;
+        .map_err(ProcessRequestError::from)?;
     let mobile_phone_number = OptionalMobilePhoneNumber::try_from(input.mobile_phone_number)
-        .map_err(|e| UseCaseError::validation(e.to_string()))?;
-    let remarks = OptionalRemarks::try_from(input.remarks)
-        .map_err(|e| UseCaseError::validation(e.to_string()))?;
+        .map_err(ProcessRequestError::from)?;
+    let remarks = OptionalRemarks::try_from(input.remarks).map_err(ProcessRequestError::from)?;
 
     let input = SignUpInputBuilder::new()
         .id(UserId::default())
@@ -124,6 +117,17 @@ impl From<SingUpOutput> for SignUpResBody {
             email: value.email.value,
             created_at: value.created_at,
             updated_at: value.updated_at,
+        }
+    }
+}
+
+impl From<DomainError> for ProcessRequestError {
+    fn from(value: DomainError) -> Self {
+        match value {
+            DomainError::Unexpected(e) => UseCaseError::unexpected(e.to_string()).into(),
+            DomainError::Validation(m) => UseCaseError::validation(m).into(),
+            DomainError::DomainRule(m) => UseCaseError::domain_rule(m).into(),
+            DomainError::Repository(e) => UseCaseError::repository(e.to_string()).into(),
         }
     }
 }
