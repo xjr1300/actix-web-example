@@ -1,8 +1,8 @@
 use reqwest::header::CONTENT_TYPE;
 
-use infra::routes::accounts::SignUpResult;
+use infra::routes::accounts::{SignUpReqBody, SignUpResBody};
 use infra::routes::ErrorResponseBody;
-use use_cases::{accounts::SignUpInput, UseCaseErrorCode};
+use use_cases::UseCaseErrorCode;
 
 use crate::helpers::{signup_request_body_json, spawn_test_app, CONTENT_TYPE_APPLICATION_JSON};
 
@@ -14,14 +14,14 @@ async fn user_can_signup_with_the_valid_info() -> anyhow::Result<()> {
     let app = spawn_test_app().await?;
 
     let json_body = signup_request_body_json();
-    let body: SignUpInput = serde_json::from_str(&json_body).unwrap();
+    let body: SignUpReqBody = serde_json::from_str(&json_body).unwrap();
 
     // 実行
     let response = app.request_accounts_signup(json_body).await?;
     let status_code = response.status();
     let headers = response.headers().clone();
     let content_type = headers.get(CONTENT_TYPE);
-    let added_user = response.json::<SignUpResult>().await?;
+    let added_user = response.json::<SignUpResBody>().await?;
 
     // 検証
     assert_eq!(reqwest::StatusCode::OK, status_code);

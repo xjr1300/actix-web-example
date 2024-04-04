@@ -19,13 +19,13 @@ pub trait UserRepository: Sync + Send {
     /// # 戻り値
     ///
     /// * 登録したユーザー
-    async fn create(&self, user: SignUpUser) -> DomainResult<SignedUpUser>;
+    async fn create(&self, user: SignUpInput) -> DomainResult<SingUpOutput>;
 }
 
 /// サイン・アップするユーザー
 #[derive(Debug, Clone, Builder)]
 #[builder_validation(func = "validate_user")]
-pub struct SignUpUser {
+pub struct SignUpInput {
     /// ユーザーID
     pub id: UserId,
     /// Eメールアドレス
@@ -52,7 +52,7 @@ pub struct SignUpUser {
     pub remarks: OptionalRemarks,
 }
 
-impl UserValidator for SignUpUser {
+impl UserValidator for SignUpInput {
     fn fixed_phone_number(&self) -> &OptionalFixedPhoneNumber {
         &self.fixed_phone_number
     }
@@ -62,7 +62,7 @@ impl UserValidator for SignUpUser {
 }
 
 /// サインアップしたユーザー
-pub struct SignedUpUser {
+pub struct SingUpOutput {
     /// ユーザーID
     pub id: UserId,
     /// Eメール・アドレス

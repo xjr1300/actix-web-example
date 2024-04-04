@@ -2,7 +2,7 @@ use time::Duration;
 
 use domain::models::primitives::EmailAddress;
 use domain::models::user::{User, UserId};
-use domain::repositories::user::{SignUpUserBuilder, SignedUpUser};
+use domain::repositories::user::{SignUpInputBuilder, SingUpOutput};
 use infra::repositories::postgres::user::{insert_user_query, UserRow};
 use infra::repositories::postgres::{
     commit_transaction, IsolationLevel, PgRepository, PgTransaction,
@@ -58,8 +58,8 @@ async fn act_and_verify(tx: PgTransaction<'_>, user: &User) -> anyhow::Result<()
 async fn insert_user_to_database(
     mut tx: PgTransaction<'_>,
     user: User,
-) -> anyhow::Result<SignedUpUser> {
-    let sign_up_user = SignUpUserBuilder::new()
+) -> anyhow::Result<SingUpOutput> {
+    let input = SignUpInputBuilder::new()
         .id(user.id)
         .email(user.email)
         .password(user.password)
@@ -74,13 +74,13 @@ async fn insert_user_to_database(
         .remarks(user.remarks)
         .build()
         .unwrap();
-    let user_row: UserRow = insert_user_query(sign_up_user).fetch_one(&mut *tx).await?;
+    let user_row: UserRow = insert_user_query(input).fetch_one(&mut *tx).await?;
     commit_transaction(tx).await?;
 
     Ok(user_row.into())
 }
 
-fn verity_user(left: &User, right: &SignedUpUser) {
+fn verity_user(left: &User, right: &SingUpOutput) {
     assert_eq!(left.id, right.id);
     assert_eq!(left.email, right.email);
     //assert_eq!(

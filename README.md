@@ -12,6 +12,7 @@
 #### アプリケーション設定
 
 * `APP_ENVIRONMENT`: アプリケーションの動作環境を`development`または`production`で指定
+* `APP_PASSWORD__PEPPER`: パスワードをハッシュ化する前に、パスワードに追加する文字列
 
 #### データベース設定
 
@@ -44,6 +45,40 @@
   * `tracing-bunyan-formatter`: Bunyanフォーマットでログを整形するフォーマッタ
   * `tracing-log`: `log`クレートが提供するロギング・ファサードと一緒に`tracing`を使用するための互換レイヤを提供
   * `tracing-subscriber`: `tracing`の購読者を実装または構成するユーティリティ
+
+## リクエストとレスポンスの処理
+
+### ユース・ケース層でデータを加工する必要がない場合
+
+* ドメイン層: FooInput、FooOutput
+* ユース・ケース層: FooUseCaseInput、FooUseCaseOutput
+* インフラストラクチャ層: FooReqBody、FooResBody
+
+* インフラストラクチャ層でリクエスト・ボディとして受け取るデータの型(`FooReqBody`)と、レスポンス・ボディとして返すデータの型(`FooResBody`)を定義
+* ドメイン層でリポジトリが受け取るデータの型(`FooInput`)と、返すデータの型(`FooOutput`)を定義
+* インフラストラクチャ層は、クライアントから受け取ったリクエスト・ボディを、`FooReqBody`に変換
+  * 変換時に検証に失敗した場合は、適切なエラーを返す
+* インフラストラクチャ層は、`FooReqBody`をリポジトリが扱う`FooInput`に変換して、ユース・ケース層に渡す
+  * 変換時に検証に失敗した場合は、適切なエラーを返す
+* ユース・ケース層は、`FooInput`でリポジトリを操作して、リポジトリから操作した結果を`FooOutput`として受け取る
+  * リポジトリの操作に失敗した場合は、適切なエラーを返す
+* ユース・ケース層は、`FooOutput`をインフラ・ストラクチャ層に返す
+* インフラストラクチャ層は、`FooOutput`を`FooResBody`に変換して、クライアントに返す
+
+### ユース・ケース層でデータを加工する必要がある場合
+
+* インフラストラクチャ層でリクエスト・ボディとして受け取るデータの型(`FooReqBody`)と、レスポンス・ボディとして返すデータの型(`FooResBody`)を定義
+* ユースケース層でインフラストラクチャ層から受け取るデータの型(`FooUseCaseInput`)と、インフラストラクチャ層に返すデータの型(`FooUseCaseOutput`)を定義
+* ドメイン層でリポジトリが受け取るデータの型(`FooInput`)と、返すデータの型(`FooOutput`)を定義
+* インフラストラクチャ層は、クライアントから受け取ったリクエスト・ボディを、`FooReqBody`に変換
+  * 変換時に検証に失敗した場合は、適切なエラーを返す
+* インフラストラクチャ層は、`FooReqBody`を、ユース・ケース層が扱う`FooUseCaseInput`に変換して、ユース・ケース層に渡す
+  * 変換時に検証に失敗した場合は、適切なエラーを返す
+* ユース・ケース層は、`FooUseCaseInput`を操作した後、リポジトリに渡す`FooInput`を生成してリポジトリを操作して、リポジトリから操作した結果を`FooOutput`として受け取る
+  * `FooUseCaseInput`の操作に失敗した場合は、適切なエラーを返す
+  * リポジトリの操作に失敗した場合は、適切なエラーを返す
+* ユース・ケース層は、`FooOutput`を操作した後、`FooUseCaseOutput`を生成してインフラストラクチャ層に返す
+* インフラストラクチャ層は、 `FooUseCaseOutput`を`FooResBody`に変換してクライアントに返す
 
 ## コンテナの起動
 
@@ -115,4 +150,5 @@ cargo audit fix --dry-run
 | 外部キー制約               | `fk_<table-name>-<relationship>`      | Foreign key   |
 | チェック制約               | `ck_<table-name>-<content>`           | Check         |
 
-> `reason`には、チェック制約の内容を記述
+* `relationship`には、関連の説明を記述
+* `content`には、チェック制約の内容を記述
