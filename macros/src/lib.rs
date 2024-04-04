@@ -5,7 +5,7 @@ mod types;
 mod utils;
 
 mod primitive;
-use primitive::{impl_primitive_display, impl_string_primitive};
+use primitive::{impl_integer_primitive, impl_primitive_display, impl_string_primitive};
 mod optional_string_primitive;
 use optional_string_primitive::impl_optional_string_primitive;
 mod getter;
@@ -35,12 +35,13 @@ pub fn derive_primitive_display(input: TokenStream) -> TokenStream {
 /// 文字列の前後の空白文字を除去した文字列を値として格納する。
 ///
 /// `primitive`属性の`name`には、プリミティブの名前を指定する。
+/// `primitive`属性の`message`には、プリミティブの検証に失敗したときのメッセージを指定する。
 ///
 /// ```text
 /// #[derive(Validator, StringPrimitive)]
 /// #[primitive(
 ///     name = "Eメール・アドレス",
-///     message = "Eメール・アドレスの文字数は6文字以上254文字以下です。"
+///     message = "文字列がEメール・アドレスの形式と一致していません。"
 /// )]
 /// pub struct EmailAddress {
 ///     #[validate(email)]
@@ -55,6 +56,31 @@ pub fn derive_string_primitive(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
 
     match impl_string_primitive(input) {
+        Ok(token_stream) => TokenStream::from(token_stream),
+        Err(err) => TokenStream::from(err.into_compile_error()),
+    }
+}
+
+/// `IntegerPrimitive`導出マクロ
+///
+/// `validator`クレートの`Validate`導出マクロと合わせて使用することを前提にしており、
+/// `value`フィールドを持つ構造体に`new`メソッドを実装する。
+///
+/// `primitive`属性の`name`には、プリミティブの名前を指定する。
+///
+/// ```text
+/// #[derive(Validator, IntegerPrimitive)]
+/// #[primitive(name = "数量")]
+/// pub struct Amount {
+///     #[validate(range(min = 0, max = 20))]
+///     value: i32,
+/// }
+/// ```
+#[proc_macro_derive(IntegerPrimitive, attributes(primitive))]
+pub fn derive_integer_primitive(input: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(input as DeriveInput);
+
+    match impl_integer_primitive(input) {
         Ok(token_stream) => TokenStream::from(token_stream),
         Err(err) => TokenStream::from(err.into_compile_error()),
     }

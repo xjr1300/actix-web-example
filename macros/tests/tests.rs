@@ -1,7 +1,7 @@
 use validator::Validate;
 
 use domain::{DomainError, DomainResult};
-use macros::{OptionalStringPrimitive, PrimitiveDisplay, StringPrimitive};
+use macros::{IntegerPrimitive, OptionalStringPrimitive, PrimitiveDisplay, StringPrimitive};
 
 /// `Display`トレイトを実装したドメイン・プリミティブを実装できることを確認
 #[test]
@@ -24,6 +24,13 @@ fn primitive_display_works() {
 struct TestStringPrimitive {
     #[validate(length(min = 10, max = 20,))]
     value: String,
+}
+
+#[derive(Validate, IntegerPrimitive)]
+#[primitive(name = "整数プリミティブ")]
+struct TestIntegerPrimitive {
+    #[validate(range(min = 0, max = 10))]
+    value: i32,
 }
 
 /// 適切な文字数で文字列プリミティブを構築できることを確認

@@ -260,7 +260,7 @@ mod tests {
             match EmailAddress::new(candidate) {
             Ok(_) => panic!("EmailAddress must not be constructed from invalid string: {}", candidate),
             Err(err) => match err {
-                DomainError::DomainRule(_) => {},
+                DomainError::Validation(_) => {},
                 _ =>panic!("DomainError::DomainRule should be raised when constructing from invalid string: {}", candidate)
             }
         }
