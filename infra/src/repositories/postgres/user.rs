@@ -6,7 +6,7 @@ use uuid::Uuid;
 
 use domain::models::primitives::*;
 use domain::models::user::{User, UserId};
-use domain::repositories::user::{SignUpUser, SignedUpUser, UserRepository};
+use domain::repositories::user::{SignUpInput, SingUpOutput, UserRepository};
 use domain::{DomainError, DomainResult};
 
 use crate::repositories::postgres::{commit_transaction, PgRepository};
@@ -21,7 +21,7 @@ impl UserRepository for PgUserRepository {
     /// ユーザーを登録するとき、ユーザーの作成日時と更新日時は何らかの日時を設定する。
     /// 登録後に返されるユーザーの作成日時と更新日時の作成日時と更新日時には、データベースに登録
     /// した日時が設定されている。
-    async fn create(&self, user: SignUpUser) -> DomainResult<SignedUpUser> {
+    async fn create(&self, user: SignUpInput) -> DomainResult<SingUpOutput> {
         let mut tx = self.begin().await?;
         let added_user = insert_user_query(user)
             .fetch_one(&mut *tx)
@@ -52,7 +52,7 @@ pub struct UserRow {
     pub updated_at: OffsetDateTime,
 }
 
-impl From<UserRow> for SignedUpUser {
+impl From<UserRow> for SingUpOutput {
     fn from(value: UserRow) -> Self {
         Self {
             id: UserId::new(value.id),
@@ -73,7 +73,7 @@ impl From<UserRow> for SignedUpUser {
 ///
 /// ユーザーをデータベースに登録するクエリ
 pub fn insert_user_query(
-    user: SignUpUser,
+    user: SignUpInput,
 ) -> sqlx::query::QueryAs<'static, sqlx::Postgres, UserRow, sqlx::postgres::PgArguments> {
     let password = user.password.value.expose_secret().to_string();
     let fixed_phone_number = user.fixed_phone_number.value().map(|n| n.to_string());
