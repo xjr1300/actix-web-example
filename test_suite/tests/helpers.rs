@@ -2,23 +2,42 @@ use std::net::TcpListener;
 use std::path::Path;
 
 use anyhow::Context as _;
-use domain::models::user::{UserPermission, UserPermissionCode, UserPermissionName};
 use once_cell::sync::Lazy;
 use reqwest::header::{HeaderValue, CONTENT_TYPE};
 use secrecy::SecretString;
 use sqlx::{Connection as _, Executor as _, PgConnection, PgPool};
 use uuid::Uuid;
 
-use domain::models::passwords::PhcPassword;
+use domain::models::passwords::{generate_phc_string, PhcPassword, RawPassword};
 use domain::models::primitives::*;
-use domain::models::user::{User, UserBuilder, UserId};
-use domain::now_jst;
+use domain::models::user::{UserId, UserPermission, UserPermissionCode, UserPermissionName};
+use domain::repositories::user::{SignUpInput, SignUpInputBuilder};
+use infra::routes::accounts::SignUpReqBody;
 use infra::RequestContext;
 use server::settings::{
     retrieve_app_settings, AppEnvironment, DatabaseSettings, ENV_APP_ENVIRONMENT, SETTINGS_DIR_NAME,
 };
 use server::startup::build_http_server;
 use server::telemetry::{generate_log_subscriber, init_log_subscriber};
+
+/// 分解したレスポンス
+pub struct ResponseParts {
+    /// ステータス・コード
+    pub status_code: reqwest::StatusCode,
+    /// ヘッダ
+    pub headers: reqwest::header::HeaderMap,
+    /// ボディ
+    pub body: String,
+}
+
+/// レスポンスをステータス・コード、ヘッダ、ボディに分割する。
+pub async fn split_response(response: reqwest::Response) -> anyhow::Result<ResponseParts> {
+    Ok(ResponseParts {
+        status_code: response.status(),
+        headers: response.headers().clone(),
+        body: response.text().await?,
+    })
+}
 
 /// ログ・サブスクライバ
 static TRACING: Lazy<()> = Lazy::new(|| {
@@ -40,15 +59,14 @@ pub const CONTENT_TYPE_APPLICATION_JSON: &str = "application/json";
 pub struct TestApp {
     /// アプリのルートURI
     pub root_uri: String,
+    /// パスワードに振りかけるペッパー
+    pub pepper: SecretString,
     /// データベース接続プール
     pub pool: PgPool,
 }
 
 impl TestApp {
-    pub async fn request_accounts_sign_up(
-        &self,
-        body: String,
-    ) -> anyhow::Result<reqwest::Response> {
+    pub async fn sign_up(&self, body: String) -> anyhow::Result<reqwest::Response> {
         let client = reqwest::Client::new();
 
         client
@@ -59,7 +77,18 @@ impl TestApp {
             .await
             .map_err(|e| e.into())
     }
+
+    pub async fn list_users(&self) -> anyhow::Result<reqwest::Response> {
+        let client = reqwest::Client::new();
+
+        client
+            .get(&format!("{}/accounts/users", self.root_uri))
+            .send()
+            .await
+            .map_err(|e| e.into())
+    }
 }
+
 /// 統合テスト用のHTTPサーバーを起動する。
 ///
 /// # 戻り値
@@ -84,7 +113,7 @@ pub async fn spawn_test_app() -> anyhow::Result<TestApp> {
     // テスト用のデータベースを作成して、接続及び構成
     let pool = configure_database(&app_settings.database).await?;
     // テスト用のデータベースに接続するリポジトリのコンテナを構築
-    let context = RequestContext::new(app_settings.password.pepper, pool.clone());
+    let context = RequestContext::new(app_settings.password.pepper.clone(), pool.clone());
 
     // ポート0を指定してTCPソケットにバインドすることで、OSにポート番号の決定を委譲
     let listener = TcpListener::bind("localhost:0").context("failed to bind random port")?;
@@ -96,6 +125,7 @@ pub async fn spawn_test_app() -> anyhow::Result<TestApp> {
 
     Ok(TestApp {
         root_uri: format!("http://localhost:{}", port),
+        pepper: app_settings.password.pepper,
         pool,
     })
 }
@@ -135,12 +165,15 @@ pub async fn configure_database(settings: &DatabaseSettings) -> anyhow::Result<P
 pub const RAW_PHC_PASSWORD: &str = "$argon2id$v=19$m=65536,t=2,p=1$gZiV/M1gPc22ElAH/Jh1Hw$CWOrkoo7oJBQ/iyh7uJ0LO2aLEfrHwTWllSAxT0zRno";
 
 /// 未加工なパスワードとして使用できる文字列
-pub const VALID_RAW_PASSWORD: &str = "Az3#Za3@";
+pub const VALID_RAW_PASSWORD1: &str = "Az3#Za3@";
+pub const VALID_RAW_PASSWORD2: &str = "Yd3*_#Za";
 
+#[allow(dead_code)]
 pub fn generate_phc_password() -> PhcPassword {
     PhcPassword::new(SecretString::new(String::from(RAW_PHC_PASSWORD))).unwrap()
 }
 
+#[allow(dead_code)]
 pub fn generate_user_permission() -> UserPermission {
     UserPermission::new(
         UserPermissionCode::new(1),
@@ -148,53 +181,39 @@ pub fn generate_user_permission() -> UserPermission {
     )
 }
 
+#[allow(dead_code)]
 pub fn generate_family_name() -> FamilyName {
     FamilyName::new("山田").unwrap()
 }
 
+#[allow(dead_code)]
 pub fn generate_given_name() -> GivenName {
     GivenName::new("太郎").unwrap()
 }
 
+#[allow(dead_code)]
 pub fn generate_postal_code() -> PostalCode {
     PostalCode::new("105-0011").unwrap()
 }
 
+#[allow(dead_code)]
 pub fn generate_address() -> Address {
     Address::new("東京都港区芝公園4-2-8").unwrap()
 }
 
+#[allow(dead_code)]
 pub fn generate_optional_fixed_phone_number() -> OptionalFixedPhoneNumber {
     OptionalFixedPhoneNumber::try_from("03-3433-5111").unwrap()
 }
 
+#[allow(dead_code)]
 pub fn generate_optional_mobile_phone_number() -> OptionalMobilePhoneNumber {
     OptionalMobilePhoneNumber::try_from("090-1234-5678").unwrap()
 }
 
+#[allow(dead_code)]
 pub fn generate_optional_remarks() -> OptionalRemarks {
     OptionalRemarks::try_from("すもももももももものうち。もももすももももものうち。").unwrap()
-}
-
-pub fn generate_user(id: UserId, email: EmailAddress) -> User {
-    let dt = now_jst();
-    UserBuilder::new()
-        .id(id)
-        .email(email)
-        .password(generate_phc_password())
-        .active(true)
-        .user_permission(generate_user_permission())
-        .family_name(generate_family_name())
-        .given_name(generate_given_name())
-        .postal_code(generate_postal_code())
-        .address(generate_address())
-        .fixed_phone_number(generate_optional_fixed_phone_number())
-        .mobile_phone_number(generate_optional_mobile_phone_number())
-        .remarks(generate_optional_remarks())
-        .created_at(dt)
-        .updated_at(dt)
-        .build()
-        .unwrap()
 }
 
 pub fn sign_up_request_body_json() -> String {
@@ -213,6 +232,56 @@ pub fn sign_up_request_body_json() -> String {
             "remarks": "日本に実際に存在するややこしい地名です。"
         }}
         "#,
-        VALID_RAW_PASSWORD
+        VALID_RAW_PASSWORD1
     )
+}
+
+pub fn sign_up_request_body(body: &str) -> SignUpReqBody {
+    serde_json::from_str::<SignUpReqBody>(body).unwrap()
+}
+
+pub fn tokyo_tower_sign_up_request_body() -> SignUpReqBody {
+    SignUpReqBody {
+        email: String::from("tokyo@asdf.com"),
+        password: SecretString::new(String::from(VALID_RAW_PASSWORD2)),
+        user_permission_code: 2,
+        family_name: String::from("東京"),
+        given_name: String::from("タワー"),
+        postal_code: String::from("105-0011"),
+        address: String::from("東京都港区芝公園4-2-8"),
+        fixed_phone_number: Some(String::from("03-3433-5111")),
+        mobile_phone_number: None,
+        remarks: Some(String::from("1958年12月23日に開業しました。")),
+    }
+}
+
+pub fn sign_up_input(body: SignUpReqBody, pepper: &SecretString) -> SignUpInput {
+    let email = EmailAddress::new(body.email).unwrap();
+    let user_permission_code = UserPermissionCode::new(body.user_permission_code);
+    let password = RawPassword::new(body.password).unwrap();
+    let password = generate_phc_string(&password, pepper).unwrap();
+    let family_name = FamilyName::new(body.family_name).unwrap();
+    let given_name = GivenName::new(body.given_name).unwrap();
+    let postal_code = PostalCode::new(body.postal_code).unwrap();
+    let address = Address::new(body.address).unwrap();
+    let fixed_phone_number = OptionalFixedPhoneNumber::try_from(body.fixed_phone_number).unwrap();
+    let mobile_phone_number =
+        OptionalMobilePhoneNumber::try_from(body.mobile_phone_number).unwrap();
+    let remarks = OptionalRemarks::try_from(body.remarks).unwrap();
+
+    SignUpInputBuilder::new()
+        .id(UserId::default())
+        .email(email)
+        .password(password)
+        .active(true)
+        .user_permission_code(user_permission_code)
+        .family_name(family_name)
+        .given_name(given_name)
+        .postal_code(postal_code)
+        .address(address)
+        .fixed_phone_number(fixed_phone_number)
+        .mobile_phone_number(mobile_phone_number)
+        .remarks(remarks)
+        .build()
+        .unwrap()
 }

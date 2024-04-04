@@ -1,10 +1,16 @@
 use reqwest::header::CONTENT_TYPE;
+use reqwest::StatusCode;
 
-use infra::routes::accounts::{SignUpReqBody, SignUpResBody};
+use infra::repositories::postgres::user::insert_user_query;
+use infra::repositories::postgres::PgRepository;
+use infra::routes::accounts::{SignUpReqBody, SignUpResBody, UserResBody};
 use infra::routes::ErrorResponseBody;
 use use_cases::UseCaseErrorCode;
 
-use crate::helpers::{sign_up_request_body_json, spawn_test_app, CONTENT_TYPE_APPLICATION_JSON};
+use crate::helpers::{
+    sign_up_input, sign_up_request_body, sign_up_request_body_json, spawn_test_app, split_response,
+    tokyo_tower_sign_up_request_body, CONTENT_TYPE_APPLICATION_JSON,
+};
 
 /// 妥当なユーザー情報で、ユーザーがサインアップできることを確認
 #[tokio::test]
@@ -17,7 +23,7 @@ async fn user_can_sign_up_with_the_valid_info() -> anyhow::Result<()> {
     let body: SignUpReqBody = serde_json::from_str(&json_body).unwrap();
 
     // 実行
-    let response = app.request_accounts_sign_up(json_body).await?;
+    let response = app.sign_up(json_body).await?;
     let status_code = response.status();
     let headers = response.headers().clone();
     let content_type = headers.get(CONTENT_TYPE);
@@ -43,8 +49,8 @@ async fn user_can_not_sign_up_because_another_user_has_same_email_was_registered
     let json_body = sign_up_request_body_json();
 
     // 実行
-    let _ = app.request_accounts_sign_up(json_body.clone()).await?;
-    let response = app.request_accounts_sign_up(json_body).await?;
+    let _ = app.sign_up(json_body.clone()).await?;
+    let response = app.sign_up(json_body).await?;
     let status_code = response.status();
     let headers = response.headers().clone();
     let content_type = headers.get(CONTENT_TYPE);
@@ -77,7 +83,7 @@ async fn user_can_not_sign_up_with_invalid_email() -> anyhow::Result<()> {
     let json_body = sign_up_request_body_json().replace("foo@example.com", "foo");
 
     // 実行
-    let response = app.request_accounts_sign_up(json_body).await?;
+    let response = app.sign_up(json_body).await?;
     let status_code = response.status();
     let headers = response.headers().clone();
     let content_type = headers.get(CONTENT_TYPE);
@@ -114,7 +120,7 @@ async fn user_can_not_sign_up_without_fixed_phone_number_and_mobile_phone_number
         .replace(r#""099-472-1111""#, "null")
         .replace(r#""090-1234-5678""#, "null");
 
-    let response = app.request_accounts_sign_up(json_body).await?;
+    let response = app.sign_up(json_body).await?;
     let status_code = response.status();
     let headers = response.headers().clone();
     let content_type = headers.get(CONTENT_TYPE);
@@ -147,7 +153,7 @@ async fn user_can_not_sign_up_when_user_permission_code_is_invalid() -> anyhow::
         .replace(r#""userPermissionCode": 1,"#, r#""userPermissionCode": 0,"#);
 
     // 実行
-    let response = app.request_accounts_sign_up(json_body).await?;
+    let response = app.sign_up(json_body).await?;
     let status_code = response.status();
     let headers = response.headers().clone();
     let content_type = headers.get(CONTENT_TYPE);
@@ -171,4 +177,76 @@ async fn user_can_not_sign_up_when_user_permission_code_is_invalid() -> anyhow::
     );
 
     Ok(())
+}
+
+/// データベースに登録したユーザーをリストできることを確認
+#[tokio::test]
+#[ignore]
+async fn can_list_users() -> anyhow::Result<()> {
+    // 準備
+    let app = spawn_test_app().await?;
+    let repo = PgRepository::<i32>::new(app.pool.clone());
+    let pepper = &app.pepper;
+    let json = sign_up_request_body_json();
+    let body1 = sign_up_request_body(&json);
+    let input1 = sign_up_input(body1.clone(), pepper);
+    let body2 = tokyo_tower_sign_up_request_body();
+    let input2 = sign_up_input(body2.clone(), pepper);
+
+    // 2ユーザーがサイン・イン
+    let mut tx = repo.begin().await?;
+    insert_user_query(input1).fetch_one(&mut *tx).await?;
+    insert_user_query(input2).fetch_one(&mut *tx).await?;
+    tx.commit().await?;
+    // ユーザーのリストをリクエスト
+    let response = app.list_users().await?;
+    let response_parts = split_response(response).await?;
+    let users: Vec<UserResBody> = serde_json::from_str(&response_parts.body)?;
+
+    // 検証
+    assert_eq!(StatusCode::OK, response_parts.status_code);
+    assert_eq!(2, users.len());
+    assert!(
+        user_res_body_is_match_sign_up_req_body(&body1, &users[0]),
+        "{:?} is not match to {:?}",
+        body1,
+        users[0]
+    );
+    assert!(
+        user_res_body_is_match_sign_up_req_body(&body2, &users[1]),
+        "{:?} is not match to {:?}",
+        body2,
+        users[1]
+    );
+
+    Ok(())
+}
+
+fn user_res_body_is_match_sign_up_req_body(req: &SignUpReqBody, res: &UserResBody) -> bool {
+    if req.email != res.email {
+        return false;
+    };
+    if req.user_permission_code != res.user_permission.code {
+        return false;
+    }
+    if req.family_name != res.family_name {
+        return false;
+    }
+    if req.given_name != res.given_name {
+        return false;
+    }
+    if req.postal_code != res.postal_code {
+        return false;
+    }
+    if req.address != res.address {
+        return false;
+    }
+    if req.fixed_phone_number != res.fixed_phone_number {
+        return false;
+    }
+    if req.mobile_phone_number != res.mobile_phone_number {
+        return false;
+    };
+
+    req.remarks == res.remarks
 }

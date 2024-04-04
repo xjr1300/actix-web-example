@@ -3,7 +3,6 @@ use time::OffsetDateTime;
 use macros::{Builder, PrimitiveDisplay, StringPrimitive};
 use validator::Validate;
 
-use crate::models::passwords::PhcPassword;
 use crate::models::primitives::*;
 use crate::{DomainError, DomainResult};
 
@@ -34,8 +33,6 @@ pub struct User {
     pub id: UserId,
     /// Eメール・アドレス
     pub email: EmailAddress,
-    /// パスワード（PHC文字列）
-    pub password: PhcPassword,
     /// アクティブ・フラグ
     pub active: bool,
     /// ユーザー権限
@@ -126,11 +123,7 @@ pub struct UserPermissionName {
 
 #[cfg(test)]
 mod tests {
-    use secrecy::SecretString;
-
     use super::*;
-    use crate::models::passwords::tests::VALID_RAW_PASSWORD;
-    use crate::models::passwords::{generate_phc_string, RawPassword};
     use crate::now_jst;
 
     /// ユーザーを構築できることを確認
@@ -138,10 +131,6 @@ mod tests {
     fn user_can_build_with_builder() {
         let id = UserId::default();
         let email = EmailAddress::new("foo@example.com").unwrap();
-        let plain_password = SecretString::new(String::from(VALID_RAW_PASSWORD));
-        let raw_password = RawPassword::new(plain_password).unwrap();
-        let password_pepper = SecretString::new(String::from("password-pepper"));
-        let password = generate_phc_string(&raw_password, &password_pepper).unwrap();
         let active = true;
         let user_permission = UserPermission::new(
             UserPermissionCode::new(1),
@@ -171,7 +160,6 @@ mod tests {
             let user = UserBuilder::new()
                 .id(id)
                 .email(email.clone())
-                .password(password.clone())
                 .active(active)
                 .user_permission(user_permission.clone())
                 .family_name(family_name.clone())
@@ -199,10 +187,6 @@ mod tests {
     fn user_can_not_build_without_fixed_phone_number_and_mobile_phone_number() {
         let id = UserId::default();
         let email = EmailAddress::new("foo@example.com").unwrap();
-        let plain_password = SecretString::new(String::from(VALID_RAW_PASSWORD));
-        let raw_password = RawPassword::new(plain_password).unwrap();
-        let password_pepper = SecretString::new(String::from("password-pepper"));
-        let password = generate_phc_string(&raw_password, &password_pepper).unwrap();
         let active = true;
         let user_permission = UserPermission::new(
             UserPermissionCode::new(1),
@@ -216,7 +200,6 @@ mod tests {
         let user = UserBuilder::new()
             .id(id)
             .email(email.clone())
-            .password(password.clone())
             .active(active)
             .user_permission(user_permission)
             .family_name(family_name.clone())

@@ -4,12 +4,19 @@ use time::OffsetDateTime;
 
 use crate::models::passwords::PhcPassword;
 use crate::models::primitives::*;
-use crate::models::user::{UserId, UserPermissionCode, UserValidator};
+use crate::models::user::{User, UserId, UserPermissionCode, UserValidator};
 use crate::DomainResult;
 
 /// ユーザー・リポジトリ
 #[async_trait]
 pub trait UserRepository: Sync + Send {
+    /// ユーザーのリストを取得する。
+    ///
+    /// # 戻り値
+    ///
+    /// ユーザーを格納したベクタ
+    async fn list(&self) -> DomainResult<Vec<User>>;
+
     /// ユーザーを登録する。
     ///
     /// # 引数

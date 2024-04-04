@@ -1,14 +1,14 @@
 use actix_web::http::StatusCode;
 use actix_web::{web, HttpResponse};
-use domain::models::passwords::{generate_phc_string, RawPassword};
-use domain::models::user::{UserId, UserPermissionCode};
-use domain::DomainError;
 use secrecy::SecretString;
 use time::OffsetDateTime;
 use uuid::Uuid;
 
+use domain::models::passwords::{generate_phc_string, RawPassword};
 use domain::models::primitives::*;
+use domain::models::user::{User, UserId, UserPermissionCode};
 use domain::repositories::user::{SignUpInputBuilder, SingUpOutput};
+use domain::DomainError;
 use use_cases::UseCaseError;
 
 use crate::routes::{ErrorResponseBody, ProcessRequestError, ProcessRequestResult};
@@ -16,7 +16,9 @@ use crate::RequestContext;
 
 /// アカウントスコープを返却する。
 pub fn accounts_scope() -> actix_web::Scope {
-    web::scope("/accounts").service(web::resource("/sign-up").route(web::post().to(sign_up)))
+    web::scope("/accounts")
+        .service(web::resource("/sign-up").route(web::post().to(sign_up)))
+        .service(web::resource("/users").route(web::get().to(list_users)))
 }
 
 /// サインアップ
@@ -115,6 +117,66 @@ impl From<SingUpOutput> for SignUpResBody {
         Self {
             id: value.id.value,
             email: value.email.value,
+            created_at: value.created_at,
+            updated_at: value.updated_at,
+        }
+    }
+}
+
+/// ユーザー・リスト
+async fn list_users(context: web::Data<RequestContext>) -> ProcessRequestResult<HttpResponse> {
+    let repo = context.user_repository();
+    let users = use_cases::accounts::list_users(repo)
+        .await?
+        .into_iter()
+        .map(UserResBody::from)
+        .collect::<Vec<_>>();
+
+    Ok(HttpResponse::Ok().json(users))
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct UserResBody {
+    pub id: Uuid,
+    pub email: String,
+    pub active: bool,
+    pub user_permission: UserPermissionBody,
+    pub family_name: String,
+    pub given_name: String,
+    pub postal_code: String,
+    pub address: String,
+    pub fixed_phone_number: Option<String>,
+    pub mobile_phone_number: Option<String>,
+    pub remarks: Option<String>,
+    pub last_logged_in_at: Option<OffsetDateTime>,
+    pub created_at: OffsetDateTime,
+    pub updated_at: OffsetDateTime,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct UserPermissionBody {
+    pub code: i16,
+    pub name: String,
+}
+
+impl From<User> for UserResBody {
+    fn from(value: User) -> Self {
+        Self {
+            id: value.id.value,
+            email: value.email.value,
+            active: value.active,
+            user_permission: UserPermissionBody {
+                code: value.user_permission.code.value,
+                name: value.user_permission.name.value,
+            },
+            family_name: value.family_name.value,
+            given_name: value.given_name.value,
+            postal_code: value.postal_code.value,
+            address: value.address.value,
+            fixed_phone_number: value.fixed_phone_number.owned_value(),
+            mobile_phone_number: value.mobile_phone_number.owned_value(),
+            remarks: value.remarks.owned_value(),
+            last_logged_in_at: value.last_logged_in_at,
             created_at: value.created_at,
             updated_at: value.updated_at,
         }
