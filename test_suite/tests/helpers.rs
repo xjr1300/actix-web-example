@@ -45,7 +45,10 @@ pub struct TestApp {
 }
 
 impl TestApp {
-    pub async fn request_accounts_signup(&self, body: String) -> anyhow::Result<reqwest::Response> {
+    pub async fn request_accounts_sign_up(
+        &self,
+        body: String,
+    ) -> anyhow::Result<reqwest::Response> {
         let client = reqwest::Client::new();
 
         client
@@ -194,7 +197,7 @@ pub fn generate_user(id: UserId, email: EmailAddress) -> User {
         .unwrap()
 }
 
-pub fn signup_request_body_json() -> String {
+pub fn sign_up_request_body_json() -> String {
     format!(
         r#"
         {{
