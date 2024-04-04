@@ -1,8 +1,10 @@
 use syn::punctuated::Punctuated;
-use syn::{Field, MetaNameValue, Token};
+use syn::{Field, MetaList, MetaNameValue, Token};
 
 /// `foo = "a", bar = "b"`のような、カンマで区切られた名前と値のリスト
 pub(crate) type CommaPunctuatedNameValues = Punctuated<MetaNameValue, Token![,]>;
+
+pub(crate) type CommaPunctuatedMetaList = Punctuated<MetaList, Token![,]>;
 
 /// カンマ区切りのフィールドのリスト
 ///
