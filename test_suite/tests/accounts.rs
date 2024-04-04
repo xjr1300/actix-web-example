@@ -9,7 +9,7 @@ use use_cases::UseCaseErrorCode;
 
 use crate::helpers::{
     sign_up_input, sign_up_request_body, sign_up_request_body_json, spawn_test_app, split_response,
-    tokyo_tower_sign_up_request_body, CONTENT_TYPE_APPLICATION_JSON,
+    tokyo_tower_sign_up_request_body, ResponseParts, CONTENT_TYPE_APPLICATION_JSON,
 };
 
 /// 妥当なユーザー情報で、ユーザーがサインアップできることを確認
@@ -18,23 +18,25 @@ use crate::helpers::{
 async fn user_can_sign_up_with_the_valid_info() -> anyhow::Result<()> {
     // 準備
     let app = spawn_test_app().await?;
-
     let json_body = sign_up_request_body_json();
-    let body: SignUpReqBody = serde_json::from_str(&json_body).unwrap();
+    let req_body: SignUpReqBody = serde_json::from_str(&json_body)?;
 
     // 実行
     let response = app.sign_up(json_body).await?;
-    let status_code = response.status();
-    let headers = response.headers().clone();
+    let ResponseParts {
+        status_code,
+        headers,
+        body,
+    } = split_response(response).await?;
     let content_type = headers.get(CONTENT_TYPE);
-    let added_user = response.json::<SignUpResBody>().await?;
+    let inserted_user: SignUpResBody = serde_json::from_str(&body)?;
 
     // 検証
     assert_eq!(reqwest::StatusCode::OK, status_code);
     assert!(content_type.is_some());
-    let content_type = content_type.unwrap().to_str()?;
-    assert_eq!(CONTENT_TYPE_APPLICATION_JSON, content_type);
-    assert_eq!(body.email, added_user.email);
+    let content_type = content_type.unwrap();
+    assert_eq!(CONTENT_TYPE_APPLICATION_JSON, content_type.to_str()?);
+    assert_eq!(req_body.email, inserted_user.email);
 
     Ok(())
 }
@@ -51,16 +53,19 @@ async fn user_can_not_sign_up_because_another_user_has_same_email_was_registered
     // 実行
     let _ = app.sign_up(json_body.clone()).await?;
     let response = app.sign_up(json_body).await?;
-    let status_code = response.status();
-    let headers = response.headers().clone();
+    let ResponseParts {
+        status_code,
+        headers,
+        body,
+    } = split_response(response).await?;
     let content_type = headers.get(CONTENT_TYPE);
-    let response_body = response.json::<ErrorResponseBody>().await?;
+    let response_body: ErrorResponseBody = serde_json::from_str(&body)?;
 
     // 検証
     assert_eq!(reqwest::StatusCode::BAD_REQUEST, status_code);
     assert!(content_type.is_some());
-    let content_type = content_type.unwrap().to_str()?;
-    assert_eq!(CONTENT_TYPE_APPLICATION_JSON, content_type);
+    let content_type = content_type.unwrap();
+    assert_eq!(CONTENT_TYPE_APPLICATION_JSON, content_type.to_str()?);
     assert_eq!(
         Some(UseCaseErrorCode::DomainRule as u32),
         response_body.error_code
@@ -84,10 +89,13 @@ async fn user_can_not_sign_up_with_invalid_email() -> anyhow::Result<()> {
 
     // 実行
     let response = app.sign_up(json_body).await?;
-    let status_code = response.status();
-    let headers = response.headers().clone();
+    let ResponseParts {
+        status_code,
+        headers,
+        body,
+    } = split_response(response).await?;
     let content_type = headers.get(CONTENT_TYPE);
-    let response_body = response.json::<ErrorResponseBody>().await?;
+    let response_body: ErrorResponseBody = serde_json::from_str(&body)?;
 
     // 検証
     assert_eq!(reqwest::StatusCode::BAD_REQUEST, status_code);
@@ -95,8 +103,8 @@ async fn user_can_not_sign_up_with_invalid_email() -> anyhow::Result<()> {
         Some(UseCaseErrorCode::Validation as u32),
         response_body.error_code
     );
-    let content_type = content_type.unwrap().to_str()?;
-    assert_eq!(CONTENT_TYPE_APPLICATION_JSON, content_type);
+    let content_type = content_type.unwrap();
+    assert_eq!(CONTENT_TYPE_APPLICATION_JSON, content_type.to_str()?);
     assert_eq!(
         Some(UseCaseErrorCode::Validation as u32),
         response_body.error_code
@@ -121,16 +129,19 @@ async fn user_can_not_sign_up_without_fixed_phone_number_and_mobile_phone_number
         .replace(r#""090-1234-5678""#, "null");
 
     let response = app.sign_up(json_body).await?;
-    let status_code = response.status();
-    let headers = response.headers().clone();
+    let ResponseParts {
+        status_code,
+        headers,
+        body,
+    } = split_response(response).await?;
     let content_type = headers.get(CONTENT_TYPE);
-    let response_body = response.json::<ErrorResponseBody>().await?;
+    let response_body: ErrorResponseBody = serde_json::from_str(&body)?;
 
     // 検証
     assert_eq!(reqwest::StatusCode::BAD_REQUEST, status_code);
     assert!(content_type.is_some());
-    let content_type = content_type.unwrap().to_str()?;
-    assert_eq!(CONTENT_TYPE_APPLICATION_JSON, content_type);
+    let content_type = content_type.unwrap();
+    assert_eq!(CONTENT_TYPE_APPLICATION_JSON, content_type.to_str()?);
     assert_eq!(
         Some(UseCaseErrorCode::DomainRule as u32),
         response_body.error_code
@@ -154,10 +165,13 @@ async fn user_can_not_sign_up_when_user_permission_code_is_invalid() -> anyhow::
 
     // 実行
     let response = app.sign_up(json_body).await?;
-    let status_code = response.status();
-    let headers = response.headers().clone();
+    let ResponseParts {
+        status_code,
+        headers,
+        body,
+    } = split_response(response).await?;
     let content_type = headers.get(CONTENT_TYPE);
-    let response_body = response.json::<ErrorResponseBody>().await?;
+    let response_body: ErrorResponseBody = serde_json::from_str(&body)?;
 
     // 検証
     assert_eq!(reqwest::StatusCode::BAD_REQUEST, status_code);
@@ -165,8 +179,8 @@ async fn user_can_not_sign_up_when_user_permission_code_is_invalid() -> anyhow::
         Some(UseCaseErrorCode::Validation as u32),
         response_body.error_code
     );
-    let content_type = content_type.unwrap().to_str()?;
-    assert_eq!(CONTENT_TYPE_APPLICATION_JSON, content_type);
+    let content_type = content_type.unwrap();
+    assert_eq!(CONTENT_TYPE_APPLICATION_JSON, content_type.to_str()?);
     assert_eq!(
         Some(UseCaseErrorCode::Validation as u32),
         response_body.error_code
@@ -200,11 +214,19 @@ async fn can_list_users() -> anyhow::Result<()> {
     tx.commit().await?;
     // ユーザーのリストをリクエスト
     let response = app.list_users().await?;
-    let response_parts = split_response(response).await?;
-    let users: Vec<UserResBody> = serde_json::from_str(&response_parts.body)?;
+    let ResponseParts {
+        status_code,
+        headers,
+        body,
+    } = split_response(response).await?;
+    let content_type = headers.get(CONTENT_TYPE);
+    let users: Vec<UserResBody> = serde_json::from_str(&body)?;
 
     // 検証
-    assert_eq!(StatusCode::OK, response_parts.status_code);
+    assert_eq!(StatusCode::OK, status_code);
+    assert!(content_type.is_some());
+    let content_type = content_type.unwrap();
+    assert_eq!(CONTENT_TYPE_APPLICATION_JSON, content_type.to_str()?);
     assert_eq!(2, users.len());
     assert!(
         user_res_body_is_match_sign_up_req_body(&body1, &users[0]),
