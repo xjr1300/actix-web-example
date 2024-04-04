@@ -2,7 +2,6 @@ use std::net::TcpListener;
 use std::path::Path;
 
 use anyhow::Context as _;
-use domain::models::user::{UserPermission, UserPermissionCode, UserPermissionName};
 use once_cell::sync::Lazy;
 use reqwest::header::{HeaderValue, CONTENT_TYPE};
 use secrecy::SecretString;
@@ -11,8 +10,7 @@ use uuid::Uuid;
 
 use domain::models::passwords::PhcPassword;
 use domain::models::primitives::*;
-use domain::models::user::{User, UserBuilder, UserId};
-use domain::now_jst;
+use domain::models::user::{UserPermission, UserPermissionCode, UserPermissionName};
 use infra::RequestContext;
 use server::settings::{
     retrieve_app_settings, AppEnvironment, DatabaseSettings, ENV_APP_ENVIRONMENT, SETTINGS_DIR_NAME,
@@ -137,10 +135,12 @@ pub const RAW_PHC_PASSWORD: &str = "$argon2id$v=19$m=65536,t=2,p=1$gZiV/M1gPc22E
 /// 未加工なパスワードとして使用できる文字列
 pub const VALID_RAW_PASSWORD: &str = "Az3#Za3@";
 
+#[allow(dead_code)]
 pub fn generate_phc_password() -> PhcPassword {
     PhcPassword::new(SecretString::new(String::from(RAW_PHC_PASSWORD))).unwrap()
 }
 
+#[allow(dead_code)]
 pub fn generate_user_permission() -> UserPermission {
     UserPermission::new(
         UserPermissionCode::new(1),
@@ -148,53 +148,39 @@ pub fn generate_user_permission() -> UserPermission {
     )
 }
 
+#[allow(dead_code)]
 pub fn generate_family_name() -> FamilyName {
     FamilyName::new("山田").unwrap()
 }
 
+#[allow(dead_code)]
 pub fn generate_given_name() -> GivenName {
     GivenName::new("太郎").unwrap()
 }
 
+#[allow(dead_code)]
 pub fn generate_postal_code() -> PostalCode {
     PostalCode::new("105-0011").unwrap()
 }
 
+#[allow(dead_code)]
 pub fn generate_address() -> Address {
     Address::new("東京都港区芝公園4-2-8").unwrap()
 }
 
+#[allow(dead_code)]
 pub fn generate_optional_fixed_phone_number() -> OptionalFixedPhoneNumber {
     OptionalFixedPhoneNumber::try_from("03-3433-5111").unwrap()
 }
 
+#[allow(dead_code)]
 pub fn generate_optional_mobile_phone_number() -> OptionalMobilePhoneNumber {
     OptionalMobilePhoneNumber::try_from("090-1234-5678").unwrap()
 }
 
+#[allow(dead_code)]
 pub fn generate_optional_remarks() -> OptionalRemarks {
     OptionalRemarks::try_from("すもももももももものうち。もももすももももものうち。").unwrap()
-}
-
-pub fn generate_user(id: UserId, email: EmailAddress) -> User {
-    let dt = now_jst();
-    UserBuilder::new()
-        .id(id)
-        .email(email)
-        .password(generate_phc_password())
-        .active(true)
-        .user_permission(generate_user_permission())
-        .family_name(generate_family_name())
-        .given_name(generate_given_name())
-        .postal_code(generate_postal_code())
-        .address(generate_address())
-        .fixed_phone_number(generate_optional_fixed_phone_number())
-        .mobile_phone_number(generate_optional_mobile_phone_number())
-        .remarks(generate_optional_remarks())
-        .created_at(dt)
-        .updated_at(dt)
-        .build()
-        .unwrap()
 }
 
 pub fn sign_up_request_body_json() -> String {
