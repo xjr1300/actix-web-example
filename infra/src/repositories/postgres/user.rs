@@ -45,7 +45,7 @@ impl UserRepository for PgUserRepository {
 }
 
 #[derive(sqlx::FromRow)]
-pub struct UserRow {
+pub struct RetrievedUserRow {
     pub id: Uuid,
     pub email: String,
     pub password: String,
@@ -64,8 +64,8 @@ pub struct UserRow {
     pub updated_at: OffsetDateTime,
 }
 
-impl From<UserRow> for User {
-    fn from(row: UserRow) -> Self {
+impl From<RetrievedUserRow> for User {
+    fn from(row: RetrievedUserRow) -> Self {
         Self {
             id: UserId::new(row.id),
             email: EmailAddress::new(row.email).unwrap(),
@@ -89,8 +89,27 @@ impl From<UserRow> for User {
     }
 }
 
-impl From<UserRow> for SingUpOutput {
-    fn from(row: UserRow) -> Self {
+#[derive(sqlx::FromRow)]
+pub struct InsertedUserRow {
+    pub id: Uuid,
+    pub email: String,
+    pub password: String,
+    pub active: bool,
+    pub user_permission_code: i16,
+    pub family_name: String,
+    pub given_name: String,
+    pub postal_code: String,
+    pub address: String,
+    pub fixed_phone_number: Option<String>,
+    pub mobile_phone_number: Option<String>,
+    pub remarks: Option<String>,
+    pub last_logged_in_at: Option<OffsetDateTime>,
+    pub created_at: OffsetDateTime,
+    pub updated_at: OffsetDateTime,
+}
+
+impl From<InsertedUserRow> for SingUpOutput {
+    fn from(row: InsertedUserRow) -> Self {
         Self {
             id: UserId::new(row.id),
             email: EmailAddress::new(row.email).unwrap(),
@@ -100,23 +119,24 @@ impl From<UserRow> for SingUpOutput {
     }
 }
 
-type PgQueryAs =
-    sqlx::query::QueryAs<'static, sqlx::Postgres, UserRow, sqlx::postgres::PgArguments>;
+type PgQueryAs<'a, T> = sqlx::query::QueryAs<'a, sqlx::Postgres, T, sqlx::postgres::PgArguments>;
 
 /// ユーザーのリストを取得するクエリを生成する。
 ///
 /// # 戻り値
 ///
 /// ユーザーの一覧を取得するクエリ
-pub fn list_users_query() -> PgQueryAs {
-    sqlx::query_as::<Postgres, UserRow>(
+pub fn list_users_query<'a>() -> PgQueryAs<'a, RetrievedUserRow> {
+    sqlx::query_as::<Postgres, RetrievedUserRow>(
         r#"
         SELECT
             u.id, u.email, u.password, u.active, u.user_permission_code, p.name user_permission_name,
             u.family_name, u.given_name, u.postal_code, u.address, u.fixed_phone_number, u.mobile_phone_number,
             u.remarks, u.last_logged_in_at, u.created_at, u.updated_at
         FROM users u
-        INNER JOIN user_permissions p ON u.user_permission_code = p.code"#,
+        INNER JOIN user_permissions p ON u.user_permission_code = p.code
+        ORDER BY created_at
+        "#,
     )
 }
 
@@ -129,13 +149,13 @@ pub fn list_users_query() -> PgQueryAs {
 /// # 戻り値
 ///
 /// ユーザーをデータベースに登録するクエリ
-pub fn insert_user_query(user: SignUpInput) -> PgQueryAs {
+pub fn insert_user_query<'a>(user: SignUpInput) -> PgQueryAs<'a, InsertedUserRow> {
     let password = user.password.value.expose_secret().to_string();
     let fixed_phone_number = user.fixed_phone_number.value().map(|n| n.to_string());
     let mobile_phone_number = user.mobile_phone_number.value().map(|n| n.to_string());
     let remarks = user.remarks.value().map(|n| n.to_string());
 
-    sqlx::query_as::<Postgres, UserRow>(
+    sqlx::query_as::<Postgres, InsertedUserRow>(
         r#"
         INSERT INTO users (
             id, email, password, active, user_permission_code, family_name, given_name,

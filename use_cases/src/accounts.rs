@@ -1,5 +1,6 @@
 use secrecy::SecretString;
 
+use domain::models::user::User;
 use domain::repositories::user::{SignUpInput, SingUpOutput, UserRepository};
 
 use crate::{ProcessUseCaseResult, UseCaseError};
@@ -43,8 +44,25 @@ pub async fn sign_up(
                     "固定電話番号または携帯電話番号を指定する必要があります。",
                 ))
             } else {
-                Err(UseCaseError::unexpected(message))
+                Err(UseCaseError::repository(message))
             }
         }
     }
+}
+
+/// ユーザーのリストを取得する。
+///
+/// # 引数
+///
+/// * `repository` - ユーザー・リポジトリ
+///
+/// # 戻り値
+///
+/// * ユーザーを格納したベクタ
+#[tracing::instrument(name = "list users use case", skip(repository))]
+pub async fn list_users(repository: impl UserRepository) -> ProcessUseCaseResult<Vec<User>> {
+    repository
+        .list()
+        .await
+        .map_err(|e| UseCaseError::repository(e.to_string()))
 }

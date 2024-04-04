@@ -1,19 +1,4 @@
-use crate::helpers::spawn_test_app;
-
-pub struct ResponseParts {
-    pub status_code: reqwest::StatusCode,
-    pub headers: reqwest::header::HeaderMap,
-    pub body: String,
-}
-
-/// レスポンスをステータス・コード、ヘッダ、ボディに分割する。
-pub async fn split_response(response: reqwest::Response) -> anyhow::Result<ResponseParts> {
-    Ok(ResponseParts {
-        status_code: response.status(),
-        headers: response.headers().clone(),
-        body: response.text().await?,
-    })
-}
+use crate::helpers::{spawn_test_app, split_response};
 
 /// ヘルス・チェック・ハンドラ
 #[tokio::test]

@@ -24,6 +24,10 @@ pub(crate) fn impl_optional_string_primitive(input: DeriveInput) -> syn::Result<
                 self.0.as_deref()
             }
 
+            pub fn owned_value(&self) -> ::core::option::Option<::std::string::String> {
+                self.0.as_ref().map(|v| v.clone())
+            }
+
             pub fn none() -> Self {
                 Self(::core::option::Option::None)
             }
