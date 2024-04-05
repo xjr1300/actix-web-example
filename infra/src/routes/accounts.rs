@@ -4,11 +4,11 @@ use secrecy::SecretString;
 use time::OffsetDateTime;
 use uuid::Uuid;
 
-use domain::models::passwords::{generate_phc_string, RawPassword};
 use domain::models::primitives::*;
 use domain::models::user::{User, UserId, UserPermissionCode};
 use domain::repositories::user::{SignUpInputBuilder, SingUpOutput};
 use domain::DomainError;
+use use_cases::passwords::generate_phc_string;
 use use_cases::UseCaseError;
 
 use crate::routes::{ErrorResponseBody, ProcessRequestError, ProcessRequestResult};

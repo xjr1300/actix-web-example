@@ -1,123 +1,22 @@
-use std::collections::HashMap;
-use std::str::FromStr as _;
-
 use anyhow::anyhow;
 use argon2::password_hash::SaltString;
 use argon2::{Algorithm, Argon2, Params, PasswordHash, PasswordHasher, PasswordVerifier, Version};
-use regex::Regex;
+use domain::models::primitives::{PhcPassword, RawPassword};
 use secrecy::{ExposeSecret as _, SecretString};
-use validator::Validate;
 
-use configurations::settings::PasswordSettings;
+use domain::{DomainError, DomainResult};
 
-use crate::{DomainError, DomainResult};
-
-/// 未加工なパスワード
-///
-/// 未加工なパスワードは、次を満たさなければならない。
-///
-/// * 8文字以上
-/// * 大文字、小文字のアルファベットをそれぞれ1つ以上含む
-/// * 数字を1つ以上含む
-/// * 次の記号を1つ以上含む
-///   * ~`!@#$%^&*()_-+={[}]|\:;"'<,>.?/
-/// * 同じ文字が4つ以上ない
-#[derive(Debug, Clone, Validate)]
-pub struct RawPassword {
-    pub value: SecretString,
-}
-
-impl RawPassword {
-    pub fn new(value: SecretString) -> DomainResult<Self> {
-        let value = value.expose_secret().trim();
-        validate_plain_password(value)?;
-        let value =
-            SecretString::from_str(value).map_err(|e| DomainError::Unexpected(anyhow!(e)))?;
-
-        Ok(Self { value })
-    }
-}
-
-/// パスワードの最小文字数
-const PASSWORD_MIN_LENGTH: usize = 8;
-/// パスワードに含めるシンボルの候補
-const PASSWORD_SYMBOLS_CANDIDATES: &str = r#"~`!@#$%^&*()_-+={[}]|\:;"'<,>.?/"#;
-/// パスワードに同じ文字が存在することを許容する最大数
-/// 指定された数だけ同じ文字をパスワードに含めることを許可
-const PASSWORD_MAX_NUMBER_OF_CHAR_APPEARANCES: u64 = 3;
-
-/// パスワードがドメイン・ルールを満たしているか確認する。
-fn validate_plain_password(s: &str) -> DomainResult<()> {
-    // パスワードの文字数を確認
-    if s.len() < PASSWORD_MIN_LENGTH {
-        return Err(DomainError::DomainRule(
-            format!("パスワードは少なくとも{PASSWORD_MIN_LENGTH}文字以上指定してください。").into(),
-        ));
-    }
-    // 大文字のアルファベットが含まれるか確認
-    if !s.chars().any(|ch| ch.is_ascii_uppercase()) {
-        return Err(DomainError::DomainRule(
-            "パスワードは大文字のアルファベットを1文字以上含めなくてはなりません。".into(),
-        ));
-    }
-    // 小文字のアルファベットが含まれるか確認
-    if !s.chars().any(|ch| ch.is_ascii_lowercase()) {
-        return Err(DomainError::DomainRule(
-            "パスワードは小文字のアルファベットを1文字以上含めなくてはなりません。".into(),
-        ));
-    }
-    // 数字が含まれるか確認
-    if !s.chars().any(|ch| ch.is_ascii_digit()) {
-        return Err(DomainError::DomainRule(
-            "パスワードは数字を1文字以上含めなくてはなりません。".into(),
-        ));
-    }
-    // シンボルが含まれるか確認
-    if !s.chars().any(|ch| PASSWORD_SYMBOLS_CANDIDATES.contains(ch)) {
-        return Err(DomainError::DomainRule(
-            format!(
-                "パスワードは記号({})を1文字以上含めなくてはなりません。",
-                PASSWORD_SYMBOLS_CANDIDATES
-            )
-            .into(),
-        ));
-    }
-    // 文字の出現回数を確認
-    let mut number_of_chars: HashMap<char, u64> = HashMap::new();
-    s.chars().for_each(|ch| {
-        *number_of_chars.entry(ch).or_insert(0) += 1;
-    });
-    let max_number_of_appearances = number_of_chars.values().max().unwrap();
-    if PASSWORD_MAX_NUMBER_OF_CHAR_APPEARANCES < *max_number_of_appearances {
-        return Err(DomainError::DomainRule(
-            format!("パスワードは同じ文字を{PASSWORD_MAX_NUMBER_OF_CHAR_APPEARANCES}個より多く含めることはできません。").into()
-        ));
-    }
-
-    Ok(())
-}
-
-/// PHC文字列正規表現(cspell: disable-next-line)
-const PHC_STRING_EXPRESSION: &str = r#"^\$argon2id\$v=(?:16|19)\$m=\d{1,10},t=\d{1,10},p=\d{1,3}(?:,keyid=[A-Za-z0-9+/]{0,11}(?:,data=[A-Za-z0-9+/]{0,43})?)?\$[A-Za-z0-9+/]{11,64}\$[A-Za-z0-9+/]{16,86}$"#;
-
-/// PHCパスワード文字列
-#[derive(Debug, Clone)]
-pub struct PhcPassword {
-    pub value: SecretString,
-}
-
-impl PhcPassword {
-    pub fn new(value: SecretString) -> DomainResult<Self> {
-        let raw_phc = value.expose_secret();
-        let re = Regex::new(PHC_STRING_EXPRESSION).unwrap();
-        if !re.is_match(raw_phc) {
-            return Err(DomainError::Validation(
-                "PHC文字列に設定する文字列がPHC文字列の形式ではありません。".into(),
-            ));
-        }
-
-        Ok(Self { value })
-    }
+/// パスワード設定
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct PasswordSettings {
+    /// ペッパー
+    pub pepper: SecretString,
+    /// パスワードをハッシュ化するときのメモリ・サイズ
+    pub hash_memory: u32,
+    /// パスワードをハッシュ化するときの反復回数
+    pub hash_iterations: u32,
+    /// パスワードをハッシュ化するときの並列度
+    pub hash_parallelism: u32,
 }
 
 /// Argon2idアルゴリズムでパスワードをハッシュ化した、PHC文字列を生成する。
@@ -210,11 +109,9 @@ fn sprinkle_pepper_on_password(raw_password: &RawPassword, pepper: &SecretString
 pub mod tests {
     use std::str::FromStr as _;
 
-    use configurations::settings::PasswordSettings;
-    use secrecy::{ExposeSecret as _, SecretString};
+    use domain::DomainError;
 
-    use crate::models::passwords::{generate_phc_string, verify_password, RawPassword};
-    use crate::DomainError;
+    use super::*;
 
     /// 未加工なパスワードとして使用できる文字列
     pub const VALID_RAW_PASSWORD: &str = "Az3#Za3@";

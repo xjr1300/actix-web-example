@@ -7,6 +7,8 @@ use secrecy::{ExposeSecret as _, SecretString};
 use sqlx::postgres::{PgConnectOptions, PgPoolOptions, PgSslMode};
 use sqlx::{ConnectOptions as _, PgPool};
 
+use use_cases::passwords::PasswordSettings;
+
 /// 設定ファイル・ディレクトリ・パス
 pub const SETTINGS_DIR_NAME: &str = "settings";
 
@@ -66,19 +68,6 @@ pub struct AppSettings {
 pub struct HttpServerSettings {
     /// リスニング・ポート番号
     pub port: u16,
-}
-
-/// パスワード設定
-#[derive(Debug, Clone, serde::Deserialize)]
-pub struct PasswordSettings {
-    /// ペッパー
-    pub pepper: SecretString,
-    /// パスワードをハッシュ化するときのメモリ・サイズ
-    pub hash_memory: u32,
-    /// パスワードをハッシュ化するときの反復回数
-    pub hash_iterations: u32,
-    /// パスワードをハッシュ化するときの並列度
-    pub hash_parallelism: u32,
 }
 
 /// データベース設定

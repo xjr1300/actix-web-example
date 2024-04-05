@@ -10,6 +10,7 @@ enum-display = "0.1.4"
 log = { version = "0.4.21", features = ["serde"] }
 secrecy = { version = "0.8.0", features = ["alloc", "serde"] }
 serde = { version = "1.0.197", features = ["derive"] }
+use_cases = { path = "../use_cases" }
 
 [dependencies.sqlx]
 version = "0.7.4"

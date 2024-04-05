@@ -4,9 +4,13 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+anyhow = "1.0.81"
+argon2 = "0.5.3"
 domain = { path = "../domain" }
 enum-display = "0.1.4"
 macros = { path = "../macros" }
+password-hash = { version = "0.5.0", features = ["rand_core"] }
+rand = "0.8.5"
 secrecy = { version = "0.8.0", features = ["alloc", "serde"] }
 serde = { version = "1.0.197", features = ["derive"] }
 thiserror = "1.0.58"

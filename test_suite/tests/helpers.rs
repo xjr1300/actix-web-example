@@ -9,10 +9,9 @@ use sqlx::{Connection as _, Executor as _, PgConnection, PgPool};
 use uuid::Uuid;
 
 use configurations::settings::{
-    retrieve_app_settings, AppEnvironment, AppSettings, DatabaseSettings, PasswordSettings,
-    ENV_APP_ENVIRONMENT, SETTINGS_DIR_NAME,
+    retrieve_app_settings, AppEnvironment, AppSettings, DatabaseSettings, ENV_APP_ENVIRONMENT,
+    SETTINGS_DIR_NAME,
 };
-use domain::models::passwords::{generate_phc_string, PhcPassword, RawPassword};
 use domain::models::primitives::*;
 use domain::models::user::{UserId, UserPermission, UserPermissionCode, UserPermissionName};
 use domain::repositories::user::{SignUpInput, SignUpInputBuilder};
@@ -20,6 +19,7 @@ use infra::routes::accounts::SignUpReqBody;
 use infra::RequestContext;
 use server::startup::build_http_server;
 use server::telemetry::{generate_log_subscriber, init_log_subscriber};
+use use_cases::passwords::{generate_phc_string, PasswordSettings};
 
 /// 分解したレスポンス
 pub struct ResponseParts {

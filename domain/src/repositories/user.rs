@@ -2,7 +2,6 @@ use async_trait::async_trait;
 use macros::Builder;
 use time::OffsetDateTime;
 
-use crate::models::passwords::PhcPassword;
 use crate::models::primitives::*;
 use crate::models::user::{User, UserId, UserPermissionCode, UserValidator};
 use crate::DomainResult;

@@ -1,8 +1,9 @@
+pub mod accounts;
+pub mod passwords;
+
 use std::borrow::Cow;
 
 use enum_display::EnumDisplay;
-
-pub mod accounts;
 
 pub type ProcessUseCaseResult<T> = Result<T, UseCaseError>;
 

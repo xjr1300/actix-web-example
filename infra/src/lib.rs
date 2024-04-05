@@ -3,9 +3,9 @@ pub mod routes;
 
 use sqlx::PgPool;
 
-use configurations::settings::PasswordSettings;
 use domain::repositories::user::UserRepository;
 use repositories::postgres::user::PgUserRepository;
+use use_cases::passwords::PasswordSettings;
 
 /// リクエスト・コンテキスト
 #[derive(Debug, Clone)]

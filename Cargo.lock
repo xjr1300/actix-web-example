@@ -439,6 +439,7 @@ dependencies = [
  "secrecy",
  "serde",
  "sqlx",
+ "use_cases",
 ]
 
 [[package]]
@@ -668,13 +669,9 @@ name = "domain"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "argon2",
  "async-trait",
- "configurations",
  "macros",
  "once_cell",
- "password-hash",
- "rand",
  "regex",
  "secrecy",
  "thiserror",
@@ -3019,9 +3016,13 @@ checksum = "daf8dba3b7eb870caf1ddeed7bc9d2a049f3cfdfae7cb521b087cc33ae4c49da"
 name = "use_cases"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
+ "argon2",
  "domain",
  "enum-display",
  "macros",
+ "password-hash",
+ "rand",
  "secrecy",
  "serde",
  "thiserror",
