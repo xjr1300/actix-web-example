@@ -25,7 +25,7 @@ pub trait UserRepository: Sync + Send {
     /// # 戻り値
     ///
     /// * 登録したユーザー
-    async fn create(&self, user: SignUpInput) -> DomainResult<SingUpOutput>;
+    async fn create(&self, user: SignUpInput) -> DomainResult<SignUpOutput>;
 }
 
 /// サイン・アップするユーザー
@@ -67,12 +67,29 @@ impl UserValidator for SignUpInput {
     }
 }
 
-/// サインアップしたユーザー
-pub struct SingUpOutput {
+pub struct SignUpOutput {
     /// ユーザーID
     pub id: UserId,
     /// Eメール・アドレス
     pub email: EmailAddress,
+    /// アクティブ・フラグ
+    pub active: bool,
+    /// ユーザー権限コード
+    pub user_permission_code: UserPermissionCode,
+    /// 苗字
+    pub family_name: FamilyName,
+    /// 名前
+    pub given_name: GivenName,
+    /// 郵便番号
+    pub postal_code: PostalCode,
+    /// 住所
+    pub address: Address,
+    /// 固定電話番号
+    pub fixed_phone_number: OptionalFixedPhoneNumber,
+    /// 携帯電話番号
+    pub mobile_phone_number: OptionalMobilePhoneNumber,
+    /// 備考
+    pub remarks: OptionalRemarks,
     /// 登録日時
     pub created_at: OffsetDateTime,
     /// 更新日時

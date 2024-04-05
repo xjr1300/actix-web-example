@@ -3,6 +3,7 @@ pub mod passwords;
 
 use std::borrow::Cow;
 
+use domain::DomainError;
 use enum_display::EnumDisplay;
 
 pub type ProcessUseCaseResult<T> = Result<T, UseCaseError>;
@@ -113,6 +114,17 @@ impl UseCaseError {
             kind: UseCaseErrorKind::Repository,
             error_code: UseCaseErrorCode::Repository,
             message: message.into(),
+        }
+    }
+}
+
+impl From<DomainError> for UseCaseError {
+    fn from(value: DomainError) -> Self {
+        match value {
+            DomainError::Unexpected(error) => Self::unexpected(error.to_string()),
+            DomainError::Validation(message) => Self::validation(message),
+            DomainError::DomainRule(message) => Self::domain_rule(message),
+            DomainError::Repository(error) => Self::repository(error.to_string()),
         }
     }
 }

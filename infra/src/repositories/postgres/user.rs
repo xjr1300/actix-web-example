@@ -6,7 +6,7 @@ use uuid::Uuid;
 
 use domain::models::primitives::*;
 use domain::models::user::{User, UserId, UserPermission, UserPermissionCode, UserPermissionName};
-use domain::repositories::user::{SignUpInput, SingUpOutput, UserRepository};
+use domain::repositories::user::{SignUpInput, SignUpOutput, UserRepository};
 use domain::{DomainError, DomainResult};
 
 use crate::repositories::postgres::{commit_transaction, PgRepository};
@@ -32,15 +32,15 @@ impl UserRepository for PgUserRepository {
     /// ユーザーを登録するとき、ユーザーの作成日時と更新日時は何らかの日時を設定する。
     /// 登録後に返されるユーザーの作成日時と更新日時の作成日時と更新日時には、データベースに登録
     /// した日時が設定されている。
-    async fn create(&self, user: SignUpInput) -> DomainResult<SingUpOutput> {
+    async fn create(&self, user: SignUpInput) -> DomainResult<SignUpOutput> {
         let mut tx = self.begin().await?;
-        let added_user = insert_user_query(user)
+        let inserted_user = insert_user_query(user)
             .fetch_one(&mut *tx)
             .await
             .map_err(|e| DomainError::Repository(e.into()))?;
         commit_transaction(tx).await?;
 
-        Ok(added_user.into())
+        Ok(inserted_user.into())
     }
 }
 
@@ -108,11 +108,21 @@ pub struct InsertedUserRow {
     pub updated_at: OffsetDateTime,
 }
 
-impl From<InsertedUserRow> for SingUpOutput {
+impl From<InsertedUserRow> for SignUpOutput {
     fn from(row: InsertedUserRow) -> Self {
         Self {
             id: UserId::new(row.id),
             email: EmailAddress::new(row.email).unwrap(),
+            active: row.active,
+            user_permission_code: UserPermissionCode::new(row.user_permission_code),
+            family_name: FamilyName::new(row.family_name).unwrap(),
+            given_name: GivenName::new(row.given_name).unwrap(),
+            postal_code: PostalCode::new(row.postal_code).unwrap(),
+            address: Address::new(row.address).unwrap(),
+            fixed_phone_number: OptionalFixedPhoneNumber::try_from(row.fixed_phone_number).unwrap(),
+            mobile_phone_number: OptionalMobilePhoneNumber::try_from(row.mobile_phone_number)
+                .unwrap(),
+            remarks: OptionalRemarks::try_from(row.remarks).unwrap(),
             created_at: row.created_at,
             updated_at: row.updated_at,
         }

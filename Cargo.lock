@@ -1191,7 +1191,6 @@ version = "0.1.0"
 dependencies = [
  "actix-web",
  "async-trait",
- "configurations",
  "domain",
  "macros",
  "mime",

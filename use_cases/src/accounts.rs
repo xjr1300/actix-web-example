@@ -1,7 +1,89 @@
-use domain::models::user::User;
-use domain::repositories::user::{SignUpInput, SingUpOutput, UserRepository};
+use time::OffsetDateTime;
 
+use domain::models::primitives::*;
+use domain::models::user::{User, UserId, UserPermissionCode};
+use domain::repositories::user::{SignUpInputBuilder, SignUpOutput, UserRepository};
+use macros::Builder;
+
+use crate::passwords::{generate_phc_string, PasswordSettings};
 use crate::{ProcessUseCaseResult, UseCaseError};
+
+/// サイン・アップ・ユース・ケース入力
+#[derive(Debug, Clone, Builder)]
+pub struct SignUpUseCaseInput {
+    /// Eメールアドレス
+    pub email: EmailAddress,
+    /// パスワード
+    pub password: RawPassword,
+    /// アクティブ・フラグ
+    pub active: bool,
+    /// ユーザー権限コード
+    pub user_permission_code: UserPermissionCode,
+    /// 苗字
+    pub family_name: FamilyName,
+    /// 名前
+    pub given_name: GivenName,
+    /// 郵便番号
+    pub postal_code: PostalCode,
+    /// 住所
+    pub address: Address,
+    /// 固定電話番号
+    pub fixed_phone_number: OptionalFixedPhoneNumber,
+    /// 携帯電話番号
+    pub mobile_phone_number: OptionalMobilePhoneNumber,
+    /// 備考
+    pub remarks: OptionalRemarks,
+}
+
+/// サイン・アップ・ユース・ケース出力
+pub struct SignUpUseCaseOutput {
+    /// ユーザーID
+    pub id: UserId,
+    /// Eメールアドレス
+    pub email: EmailAddress,
+    /// アクティブ・フラグ
+    pub active: bool,
+    /// ユーザー権限コード
+    pub user_permission_code: UserPermissionCode,
+    /// 苗字
+    pub family_name: FamilyName,
+    /// 名前
+    pub given_name: GivenName,
+    /// 郵便番号
+    pub postal_code: PostalCode,
+    /// 住所
+    pub address: Address,
+    /// 固定電話番号
+    pub fixed_phone_number: OptionalFixedPhoneNumber,
+    /// 携帯電話番号
+    pub mobile_phone_number: OptionalMobilePhoneNumber,
+    /// 備考
+    pub remarks: OptionalRemarks,
+    /// 作成日時
+    pub created_at: OffsetDateTime,
+    /// 更新日時
+    pub updated_at: OffsetDateTime,
+}
+
+impl From<SignUpOutput> for SignUpUseCaseOutput {
+    fn from(value: SignUpOutput) -> Self {
+        Self {
+            id: value.id,
+            email: value.email,
+            active: value.active,
+            user_permission_code: value.user_permission_code,
+            family_name: value.family_name,
+            given_name: value.given_name,
+            postal_code: value.postal_code,
+            address: value.address,
+            fixed_phone_number: value.fixed_phone_number,
+            mobile_phone_number: value.mobile_phone_number,
+            remarks: value.remarks,
+            created_at: value.created_at,
+            updated_at: value.updated_at,
+        }
+    }
+}
 
 /// ユーザーを登録する。
 ///
@@ -19,12 +101,32 @@ use crate::{ProcessUseCaseResult, UseCaseError};
     fields(user.email = %input.email)
 )]
 pub async fn sign_up(
-    input: SignUpInput,
+    settings: &PasswordSettings,
     repository: impl UserRepository,
-) -> ProcessUseCaseResult<SingUpOutput> {
+    input: SignUpUseCaseInput,
+) -> ProcessUseCaseResult<SignUpUseCaseOutput> {
+    let id = UserId::default();
+    let password = generate_phc_string(&input.password, settings).map_err(UseCaseError::from)?;
+
+    let input = SignUpInputBuilder::new()
+        .id(id)
+        .email(input.email)
+        .password(password)
+        .active(input.active)
+        .user_permission_code(input.user_permission_code)
+        .family_name(input.family_name)
+        .given_name(input.given_name)
+        .postal_code(input.postal_code)
+        .address(input.address)
+        .fixed_phone_number(input.fixed_phone_number)
+        .mobile_phone_number(input.mobile_phone_number)
+        .remarks(input.remarks)
+        .build()
+        .map_err(|e| UseCaseError::domain_rule(e.to_string()))?;
+
     // ユーザーを登録
     match repository.create(input).await {
-        Ok(signed_up_user) => Ok(signed_up_user),
+        Ok(inserted_user) => Ok(inserted_user.into()),
         Err(e) => {
             let message = e.to_string();
             if message.contains("ak_users_email") {
