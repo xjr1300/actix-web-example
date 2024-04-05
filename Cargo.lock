@@ -428,6 +428,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "configurations"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "config",
+ "dotenvx",
+ "enum-display",
+ "log",
+ "secrecy",
+ "serde",
+ "sqlx",
+]
+
+[[package]]
 name = "const-oid"
 version = "0.9.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -656,10 +670,10 @@ dependencies = [
  "anyhow",
  "argon2",
  "async-trait",
+ "configurations",
  "macros",
  "once_cell",
  "password-hash",
- "paste",
  "rand",
  "regex",
  "secrecy",
@@ -1180,6 +1194,7 @@ version = "0.1.0"
 dependencies = [
  "actix-web",
  "async-trait",
+ "configurations",
  "domain",
  "macros",
  "mime",
@@ -2170,10 +2185,9 @@ version = "0.1.0"
 dependencies = [
  "actix-web",
  "anyhow",
- "config",
+ "configurations",
  "domain",
  "dotenvx",
- "enum-display",
  "infra",
  "log",
  "secrecy",
@@ -2593,6 +2607,7 @@ name = "test_suite"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "configurations",
  "domain",
  "dotenvx",
  "infra",

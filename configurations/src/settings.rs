@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use config::{self, Config, FileFormat, FileSourceFile};
+use config::{Config, FileFormat, FileSourceFile};
 use enum_display::EnumDisplay;
 use log::LevelFilter;
 use secrecy::{ExposeSecret as _, SecretString};
@@ -73,6 +73,12 @@ pub struct HttpServerSettings {
 pub struct PasswordSettings {
     /// ペッパー
     pub pepper: SecretString,
+    /// パスワードをハッシュ化するときのメモリ・サイズ
+    pub hash_memory: u32,
+    /// パスワードをハッシュ化するときの反復回数
+    pub hash_iterations: u32,
+    /// パスワードをハッシュ化するときの並列度
+    pub hash_parallelism: u32,
 }
 
 /// データベース設定

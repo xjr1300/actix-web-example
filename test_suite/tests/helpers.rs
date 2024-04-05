@@ -8,15 +8,16 @@ use secrecy::SecretString;
 use sqlx::{Connection as _, Executor as _, PgConnection, PgPool};
 use uuid::Uuid;
 
+use configurations::settings::{
+    retrieve_app_settings, AppEnvironment, AppSettings, DatabaseSettings, PasswordSettings,
+    ENV_APP_ENVIRONMENT, SETTINGS_DIR_NAME,
+};
 use domain::models::passwords::{generate_phc_string, PhcPassword, RawPassword};
 use domain::models::primitives::*;
 use domain::models::user::{UserId, UserPermission, UserPermissionCode, UserPermissionName};
 use domain::repositories::user::{SignUpInput, SignUpInputBuilder};
 use infra::routes::accounts::SignUpReqBody;
 use infra::RequestContext;
-use server::settings::{
-    retrieve_app_settings, AppEnvironment, DatabaseSettings, ENV_APP_ENVIRONMENT, SETTINGS_DIR_NAME,
-};
 use server::startup::build_http_server;
 use server::telemetry::{generate_log_subscriber, init_log_subscriber};
 
@@ -59,8 +60,8 @@ pub const CONTENT_TYPE_APPLICATION_JSON: &str = "application/json";
 pub struct TestApp {
     /// アプリのルートURI
     pub root_uri: String,
-    /// パスワードに振りかけるペッパー
-    pub pepper: SecretString,
+    /// アプリの設定
+    pub settings: AppSettings,
     /// データベース接続プール
     pub pool: PgPool,
 }
@@ -106,14 +107,14 @@ pub async fn spawn_test_app() -> anyhow::Result<TestApp> {
     // アプリケーション設定を取得
     let dir = Path::new(env!("CARGO_MANIFEST_DIR"));
     let settings_dir = dir.join("..").join(SETTINGS_DIR_NAME);
-    let mut app_settings = retrieve_app_settings(app_env, settings_dir)?;
+    let mut settings = retrieve_app_settings(app_env, settings_dir)?;
 
     // テスト用のデータベースの名前を設定
-    app_settings.database.name = format!("awe_test_{}", Uuid::new_v4()).replace('-', "_");
+    settings.database.name = format!("awe_test_{}", Uuid::new_v4()).replace('-', "_");
     // テスト用のデータベースを作成して、接続及び構成
-    let pool = configure_database(&app_settings.database).await?;
+    let pool = configure_database(&settings.database).await?;
     // テスト用のデータベースに接続するリポジトリのコンテナを構築
-    let context = RequestContext::new(app_settings.password.pepper.clone(), pool.clone());
+    let context = RequestContext::new(settings.password.clone(), pool.clone());
 
     // ポート0を指定してTCPソケットにバインドすることで、OSにポート番号の決定を委譲
     let listener = TcpListener::bind("localhost:0").context("failed to bind random port")?;
@@ -125,7 +126,7 @@ pub async fn spawn_test_app() -> anyhow::Result<TestApp> {
 
     Ok(TestApp {
         root_uri: format!("http://localhost:{}", port),
-        pepper: app_settings.password.pepper,
+        settings,
         pool,
     })
 }
@@ -255,11 +256,11 @@ pub fn tokyo_tower_sign_up_request_body() -> SignUpReqBody {
     }
 }
 
-pub fn sign_up_input(body: SignUpReqBody, pepper: &SecretString) -> SignUpInput {
+pub fn sign_up_input(body: SignUpReqBody, settings: &PasswordSettings) -> SignUpInput {
     let email = EmailAddress::new(body.email).unwrap();
     let user_permission_code = UserPermissionCode::new(body.user_permission_code);
     let password = RawPassword::new(body.password).unwrap();
-    let password = generate_phc_string(&password, pepper).unwrap();
+    let password = generate_phc_string(&password, settings).unwrap();
     let family_name = FamilyName::new(body.family_name).unwrap();
     let given_name = GivenName::new(body.given_name).unwrap();
     let postal_code = PostalCode::new(body.postal_code).unwrap();

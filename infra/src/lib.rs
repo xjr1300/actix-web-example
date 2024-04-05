@@ -1,9 +1,9 @@
 pub mod repositories;
 pub mod routes;
 
-use secrecy::SecretString;
 use sqlx::PgPool;
 
+use configurations::settings::PasswordSettings;
 use domain::repositories::user::UserRepository;
 use repositories::postgres::user::PgUserRepository;
 
@@ -11,7 +11,7 @@ use repositories::postgres::user::PgUserRepository;
 #[derive(Debug, Clone)]
 pub struct RequestContext {
     /// パスワードに振りかけるペッパー
-    pub pepper: SecretString,
+    pub password_settings: PasswordSettings,
     /// データベース接続プール
     pool: PgPool,
 }
@@ -26,8 +26,11 @@ impl RequestContext {
     /// # 戻り値
     ///
     /// リクエスト・コンテキスト
-    pub fn new(pepper: SecretString, pool: PgPool) -> Self {
-        Self { pepper, pool }
+    pub fn new(password_settings: PasswordSettings, pool: PgPool) -> Self {
+        Self {
+            password_settings,
+            pool,
+        }
     }
 
     /// ユーザー・リポジトリを返す。

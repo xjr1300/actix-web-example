@@ -31,11 +31,24 @@
 
 * `http_server`: Httpサーバー設定
   * `port`: HTTPサーバーがリッスンするポートの番号
+* `password`: パスワード設定
+  * `hash_memory`: パスワードをハッシュ化するときのメモリサイズ
+  * `hash_iterations`: パスワードをハッシュ化するときの反復回数
+  * `hash_parallelism`: パスワードをハッシュ化するときの並列度
 * `database`: データベース設定
   * `require_ssl`: SSL接続を要求するかどうか(`true`, `false`)
   * `log_statements`: ログに記録するSQLステートメントの最小レベル(`debug`, `info`, `warn`, `error`)
 * `logging`: ロギング設定
   * `level`: ロギング・レベル（`trace`, `debug`, `info`, `warn`, `error`）
+
+## 認証
+
+* ユーザーをユーザーのEメールアドレスとパスワードで認証
+* パスワードは、環境変数に設定されたペッパーと、ユーザーごとのソルトを付与したユーザーが設定したパスワードを、ハッシュ化して保存
+  * パスワードをハッシュ化するアルゴリズムに`Argon2id`を使用
+  * パスワードをハッシュ化するときのメモリサイズ、反復回数、並列度は設定ファイルから取得
+  * 生成されるハッシュ値の長さはデフォルトの32byte
+  * パスワードをハッシュ化するときの推奨値は[OWASP](https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html#argon2id)を参照
 
 ## ログの記録
 

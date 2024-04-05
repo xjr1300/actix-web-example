@@ -1,5 +1,3 @@
-use secrecy::SecretString;
-
 use domain::models::user::User;
 use domain::repositories::user::{SignUpInput, SingUpOutput, UserRepository};
 
@@ -22,7 +20,6 @@ use crate::{ProcessUseCaseResult, UseCaseError};
 )]
 pub async fn sign_up(
     input: SignUpInput,
-    pepper: &SecretString,
     repository: impl UserRepository,
 ) -> ProcessUseCaseResult<SingUpOutput> {
     // ユーザーを登録

@@ -28,12 +28,13 @@ pub async fn sign_up(
 ) -> ProcessRequestResult<HttpResponse> {
     let repository = context.user_repository();
     let input = request_body.0;
-    let pepper = &context.pepper;
+    let password_settings = &context.password_settings;
 
     let email = EmailAddress::new(input.email).map_err(ProcessRequestError::from)?;
     let user_permission_code = UserPermissionCode::new(input.user_permission_code);
     let password = RawPassword::new(input.password).map_err(ProcessRequestError::from)?;
-    let password = generate_phc_string(&password, pepper).map_err(ProcessRequestError::from)?;
+    let password =
+        generate_phc_string(&password, password_settings).map_err(ProcessRequestError::from)?;
     let family_name = FamilyName::new(input.family_name).map_err(ProcessRequestError::from)?;
     let given_name = GivenName::new(input.given_name).map_err(ProcessRequestError::from)?;
     let postal_code = PostalCode::new(input.postal_code).map_err(ProcessRequestError::from)?;
@@ -60,7 +61,7 @@ pub async fn sign_up(
         .build()
         .map_err(|e| UseCaseError::domain_rule(e.to_string()))?;
 
-    use_cases::accounts::sign_up(input, &context.pepper, repository)
+    use_cases::accounts::sign_up(input, repository)
         .await
         .map(|user| HttpResponse::Ok().json(SignUpResBody::from(user)))
         .map_err(|e| e.into())

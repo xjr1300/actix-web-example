@@ -200,12 +200,11 @@ async fn can_list_users() -> anyhow::Result<()> {
     // 準備
     let app = spawn_test_app().await?;
     let repo = PgRepository::<i32>::new(app.pool.clone());
-    let pepper = &app.pepper;
     let json = sign_up_request_body_json();
     let body1 = sign_up_request_body(&json);
-    let input1 = sign_up_input(body1.clone(), pepper);
+    let input1 = sign_up_input(body1.clone(), &app.settings.password);
     let body2 = tokyo_tower_sign_up_request_body();
-    let input2 = sign_up_input(body2.clone(), pepper);
+    let input2 = sign_up_input(body2.clone(), &app.settings.password);
 
     // 2ユーザーがサイン・イン
     let mut tx = repo.begin().await?;
