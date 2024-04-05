@@ -1,9 +1,11 @@
 use std::path::Path;
 
+use actix_web::cookie::SameSite;
 use config::{Config, FileFormat, FileSourceFile};
 use enum_display::EnumDisplay;
 use log::LevelFilter;
 use secrecy::{ExposeSecret as _, SecretString};
+use serde::{Deserialize as _, Deserializer};
 use sqlx::postgres::{PgConnectOptions, PgPoolOptions, PgSslMode};
 use sqlx::{ConnectOptions as _, PgPool};
 
@@ -68,6 +70,37 @@ pub struct AppSettings {
 pub struct HttpServerSettings {
     /// リスニング・ポート番号
     pub port: u16,
+    /// ユーザーのサイン・インの試行を許可する期間（秒）
+    pub sign_in_attempting_seconds: u32,
+    /// ユーザーのアカウントをロックするまでのサイン・イン失敗回数
+    pub number_of_sign_in_failures: u8,
+    /// JWTトークンを生成するときの秘密鍵
+    pub jwt_token_secret: SecretString,
+    /// アクセス・トークンの有効期限（秒）
+    pub access_token_seconds: u32,
+    /// リフレッシュ・トークンの有効期限（秒）
+    pub refresh_token_seconds: u32,
+    /// アクセス及びリフレッシュ・トークンを保存するクッキーに付与するSameSite属性
+    #[serde(deserialize_with = "deserialize_same_site")]
+    pub same_site: SameSite,
+    /// アクセス及びリフレッシュ・トークンを保存するクッキーにSecure属性を付けるか示すフラグ
+    pub secure: bool,
+}
+
+fn deserialize_same_site<'de, D>(deserializer: D) -> Result<SameSite, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let value = String::deserialize(deserializer)?.to_lowercase();
+    match value.as_str() {
+        "strict" => Ok(SameSite::Strict),
+        "lax" => Ok(SameSite::Lax),
+        "none" => Ok(SameSite::None),
+        _ => Err(serde::de::Error::unknown_variant(
+            &value,
+            &["strict", "lax", "none"],
+        )),
+    }
 }
 
 /// データベース設定

@@ -12,6 +12,7 @@
 #### アプリケーション設定
 
 * `APP_ENVIRONMENT`: アプリケーションの動作環境を`development`または`production`で指定
+* `APP_HTTP_SERVER__JWT_TOKEN_SECRET`: JWTトークンを生成するときの秘密鍵
 * `APP_PASSWORD__PEPPER`: パスワードをハッシュ化する前に、パスワードに追加する文字列
 
 #### データベース設定
@@ -31,6 +32,12 @@
 
 * `http_server`: Httpサーバー設定
   * `port`: HTTPサーバーがリッスンするポートの番号
+  * `sign_in_attempting_seconds`: ユーザーがサイン・インを試行する期間（秒）
+  * `number_of_sign_in_failures`: ユーザーのアカウントをロックするまでの失敗回数
+  * `access_token_seconds`: アクセス・トークンの有効期限（秒）
+  * `refresh_token_seconds`: リフレッシュ・トークンの有効期限（秒）
+  * `same_site`: クッキーの`SameSite`属性（`strict`または`lax`）
+  * `secure`: クッキーの`Secure`属性（`true`または`false`）
 * `password`: パスワード設定
   * `hash_memory`: パスワードをハッシュ化するときのメモリサイズ
   * `hash_iterations`: パスワードをハッシュ化するときの反復回数
@@ -49,6 +56,12 @@
   * パスワードをハッシュ化するときのメモリサイズ、反復回数、並列度は設定ファイルから取得
   * 生成されるハッシュ値の長さはデフォルトの32byte
   * パスワードをハッシュ化するときの推奨値は[OWASP](https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html#argon2id)を参照
+* ユーザーが認証に成功した場合、アクセス・トークンとリフレッシュ・トークンを返す
+* また同時に、アクセス・トークンとリフレッシュ・トークンを、名前をそれぞれ`access`と`refresh`としてクッキーに保存する`Set-Cookie`ヘッダを返す
+  * `SameSite`属性に設定ファイルの値を設定（`Strict`または`Lax`）
+  * `Secure`属性を設定ファイルに従って設定
+  * `HttpOnly`属性を設定
+* ユーザーが`sign_in`の`attempt_duration`時間内に`number_of_failures`回以上認証に失敗した場合、アカウントをロック
 
 ## ログの記録
 

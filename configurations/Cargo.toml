@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+actix-web = "4.5.1"
 anyhow = "1.0.81"
 config = "0.14.0"
 enum-display = "0.1.4"
