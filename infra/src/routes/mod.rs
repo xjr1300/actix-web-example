@@ -9,6 +9,9 @@ use actix_web::middleware::ErrorHandlerResponse;
 use actix_web::{HttpResponse, Responder, ResponseError};
 use mime::Mime;
 
+use domain::DomainError;
+use use_cases::UseCaseError;
+
 /// リクエスト処理結果
 pub type ProcessRequestResult<T> = Result<T, ProcessRequestError>;
 
@@ -99,6 +102,47 @@ impl ErrorResponseBody {
         Self {
             error_code,
             message: message.into(),
+        }
+    }
+}
+
+impl From<DomainError> for ProcessRequestError {
+    fn from(value: DomainError) -> Self {
+        let status_code = match value {
+            DomainError::Unexpected(_) | DomainError::Repository(_) => {
+                StatusCode::INTERNAL_SERVER_ERROR
+            }
+            _ => StatusCode::BAD_REQUEST,
+        };
+        Self {
+            status_code,
+            body: ErrorResponseBody {
+                error_code: None,
+                message: value.to_string().into(),
+            },
+        }
+    }
+}
+
+impl From<UseCaseError> for ProcessRequestError {
+    fn from(value: UseCaseError) -> Self {
+        let body = ErrorResponseBody {
+            error_code: Some(value.error_code as u32),
+            message: value.message,
+        };
+        match value.kind {
+            use_cases::UseCaseErrorKind::Unexpected | use_cases::UseCaseErrorKind::Repository => {
+                Self {
+                    status_code: StatusCode::INTERNAL_SERVER_ERROR,
+                    body,
+                }
+            }
+            use_cases::UseCaseErrorKind::Validation | use_cases::UseCaseErrorKind::DomainRule => {
+                Self {
+                    status_code: StatusCode::BAD_REQUEST,
+                    body,
+                }
+            }
         }
     }
 }

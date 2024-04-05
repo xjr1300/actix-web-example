@@ -1,4 +1,3 @@
-use actix_web::http::StatusCode;
 use actix_web::{web, HttpResponse};
 use secrecy::SecretString;
 use time::OffsetDateTime;
@@ -6,11 +5,10 @@ use uuid::Uuid;
 
 use domain::models::primitives::*;
 use domain::models::user::{User, UserPermissionCode};
-use domain::DomainError;
 use use_cases::accounts::{SignUpUseCaseInputBuilder, SignUpUseCaseOutput};
 use use_cases::UseCaseError;
 
-use crate::routes::{ErrorResponseBody, ProcessRequestError, ProcessRequestResult};
+use crate::routes::{ProcessRequestError, ProcessRequestResult};
 use crate::RequestContext;
 
 /// アカウントスコープを返却する。
@@ -203,40 +201,6 @@ impl From<User> for UserResBody {
             last_logged_in_at: value.last_logged_in_at,
             created_at: value.created_at,
             updated_at: value.updated_at,
-        }
-    }
-}
-
-impl From<DomainError> for ProcessRequestError {
-    fn from(value: DomainError) -> Self {
-        match value {
-            DomainError::Unexpected(e) => UseCaseError::unexpected(e.to_string()).into(),
-            DomainError::Validation(m) => UseCaseError::validation(m).into(),
-            DomainError::DomainRule(m) => UseCaseError::domain_rule(m).into(),
-            DomainError::Repository(e) => UseCaseError::repository(e.to_string()).into(),
-        }
-    }
-}
-
-impl From<UseCaseError> for ProcessRequestError {
-    fn from(value: UseCaseError) -> Self {
-        let body = ErrorResponseBody {
-            error_code: Some(value.error_code as u32),
-            message: value.message,
-        };
-        match value.kind {
-            use_cases::UseCaseErrorKind::Unexpected | use_cases::UseCaseErrorKind::Repository => {
-                Self {
-                    status_code: StatusCode::INTERNAL_SERVER_ERROR,
-                    body,
-                }
-            }
-            use_cases::UseCaseErrorKind::Validation | use_cases::UseCaseErrorKind::DomainRule => {
-                Self {
-                    status_code: StatusCode::BAD_REQUEST,
-                    body,
-                }
-            }
         }
     }
 }

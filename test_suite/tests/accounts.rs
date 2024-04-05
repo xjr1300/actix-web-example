@@ -99,16 +99,10 @@ async fn user_can_not_sign_up_with_invalid_email() -> anyhow::Result<()> {
 
     // 検証
     assert_eq!(reqwest::StatusCode::BAD_REQUEST, status_code);
-    assert_eq!(
-        Some(UseCaseErrorCode::Validation as u32),
-        response_body.error_code
-    );
+    assert_eq!(None, response_body.error_code);
     let content_type = content_type.unwrap();
     assert_eq!(CONTENT_TYPE_APPLICATION_JSON, content_type.to_str()?);
-    assert_eq!(
-        Some(UseCaseErrorCode::Validation as u32),
-        response_body.error_code
-    );
+    assert_eq!(None, response_body.error_code);
     assert_eq!(
         "Eメール・アドレスの形式が間違っています。",
         response_body.message
