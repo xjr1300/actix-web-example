@@ -18,7 +18,7 @@ pub fn accounts_scope() -> actix_web::Scope {
         .service(web::resource("/users").route(web::get().to(list_users)))
 }
 
-/// サインアップ
+/// サイン・アップ
 pub async fn sign_up(
     context: web::Data<RequestContext>,
     request_body: web::Json<SignUpReqBody>,
@@ -61,7 +61,7 @@ pub async fn sign_up(
         .map_err(|e| e.into())
 }
 
-/// サインアップ・リクエスト・ボディ
+/// サイン・アップ・リクエスト・ボディ
 ///
 /// ```json
 /// {"email": "foo@example.com", "password": "p@ssw0rd", "userPermissionCode": 1, "familyName": "Yamada", "givenName": "Taro", "postalCode": "899-7103", "address": "鹿児島県志布志市志布志町志布志2-1-1", "fixedPhoneNumber": "099-472-1111", "mobilePhoneNumber": "090-1234-5678", "remarks": "日本に実際に存在するややこしい地名です。"}
@@ -91,7 +91,7 @@ pub struct SignUpReqBody {
     pub remarks: Option<String>,
 }
 
-/// サインアップ・レスポンス・ボディ
+/// サイン・アップ・レスポンス・ボディ
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SignUpResBody {

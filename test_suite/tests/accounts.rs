@@ -12,7 +12,7 @@ use crate::helpers::{
     tokyo_tower_sign_up_request_body, ResponseParts, CONTENT_TYPE_APPLICATION_JSON,
 };
 
-/// 妥当なユーザー情報で、ユーザーがサインアップできることを確認
+/// 妥当なユーザー情報で、ユーザーがサイン・アップできることを確認
 #[tokio::test]
 #[ignore]
 async fn user_can_sign_up_with_the_valid_info() -> anyhow::Result<()> {
@@ -41,7 +41,7 @@ async fn user_can_sign_up_with_the_valid_info() -> anyhow::Result<()> {
     Ok(())
 }
 
-/// Eメールアドレスがすでに登録されている場合に、ユーザーがサインアップできないことを確認
+/// Eメールアドレスがすでに登録されている場合に、ユーザーがサイン・アップできないことを確認
 #[tokio::test]
 #[ignore]
 async fn user_can_not_sign_up_because_another_user_has_same_email_was_registered(
@@ -79,7 +79,7 @@ async fn user_can_not_sign_up_because_another_user_has_same_email_was_registered
 }
 
 /// `actix-web`がエラー処理したときのレスポンスを確認するために、代表してEメール・アドレスの形式が
-/// 間違っている場合に、ユーザーがサインアップできないことを確認
+/// 間違っている場合に、ユーザーがサイン・アップできないことを確認
 #[tokio::test]
 #[ignore]
 async fn user_can_not_sign_up_with_invalid_email() -> anyhow::Result<()> {
@@ -111,7 +111,7 @@ async fn user_can_not_sign_up_with_invalid_email() -> anyhow::Result<()> {
     Ok(())
 }
 
-/// 固定電話番号と携帯電話番号が設定されていない場合に、ユーザーがサインアップできないことを確認
+/// 固定電話番号と携帯電話番号が設定されていない場合に、ユーザーがサイン・アップできないことを確認
 #[tokio::test]
 #[ignore]
 async fn user_can_not_sign_up_without_fixed_phone_number_and_mobile_phone_number(
@@ -148,7 +148,7 @@ async fn user_can_not_sign_up_without_fixed_phone_number_and_mobile_phone_number
     Ok(())
 }
 
-/// 妥当でないユーザー権限コードが設定されている場合に、ユーザーがサインアップできないことを確認
+/// 妥当でないユーザー権限コードが設定されている場合に、ユーザーがサイン・アップできないことを確認
 #[tokio::test]
 #[ignore]
 async fn user_can_not_sign_up_when_user_permission_code_is_invalid() -> anyhow::Result<()> {
