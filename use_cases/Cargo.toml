@@ -4,15 +4,17 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-anyhow = "1.0.81"
 argon2 = "0.5.3"
 domain = { path = "../domain" }
 enum-display = "0.1.4"
+hmac = "0.12.1"
+jwt = "0.16"
 macros = { path = "../macros" }
 password-hash = { version = "0.5.0", features = ["rand_core"] }
 rand = "0.8.5"
 secrecy = { version = "0.8.0", features = ["alloc", "serde"] }
 serde = { version = "1.0.197", features = ["derive"] }
+sha2 = "0.10.8"
 thiserror = "1.0.58"
 time = { version = "0.3.34", features = [
     "parsing",
@@ -22,3 +24,6 @@ time = { version = "0.3.34", features = [
 ] }
 tracing = { version = "0.1.40", features = ["log"] }
 uuid = { version = "1.8.0", features = ["v4", "serde"] }
+
+[dev-dependencies]
+anyhow = "1.0.81"

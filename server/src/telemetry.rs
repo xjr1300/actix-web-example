@@ -6,7 +6,7 @@ use tracing_subscriber::fmt::MakeWriter;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::{EnvFilter, Registry};
 
-/// ログ・サブスクライバ名
+/// ログサブスクライバ名
 pub const LOG_SUBSCRIBER_NAME: &str = "actix_web_example";
 
 /// ログを購読するサブスクライバを生成する。

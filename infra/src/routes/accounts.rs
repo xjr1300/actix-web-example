@@ -1,11 +1,13 @@
 use actix_web::{web, HttpResponse};
-use secrecy::SecretString;
+use secrecy::{ExposeSecret, SecretString};
 use time::OffsetDateTime;
 use uuid::Uuid;
 
 use domain::models::primitives::*;
 use domain::models::user::{User, UserPermissionCode};
-use use_cases::accounts::{SignUpUseCaseInputBuilder, SignUpUseCaseOutput};
+use use_cases::accounts::{
+    JwtTokenPair, SignInUseCaseInput, SignUpUseCaseInputBuilder, SignUpUseCaseOutput,
+};
 use use_cases::UseCaseError;
 
 use crate::routes::{ProcessRequestError, ProcessRequestResult};
@@ -15,10 +17,11 @@ use crate::RequestContext;
 pub fn accounts_scope() -> actix_web::Scope {
     web::scope("/accounts")
         .service(web::resource("/sign-up").route(web::post().to(sign_up)))
+        .service(web::resource("/sign-in").route(web::post().to(sign_in)))
         .service(web::resource("/users").route(web::get().to(list_users)))
 }
 
-/// サイン・アップ
+/// サインアップ
 pub async fn sign_up(
     context: web::Data<RequestContext>,
     request_body: web::Json<SignUpReqBody>,
@@ -61,10 +64,7 @@ pub async fn sign_up(
         .map_err(|e| e.into())
 }
 
-/// サイン・アップ・リクエスト・ボディ
-///
-/// ```json
-/// {"email": "foo@example.com", "password": "p@ssw0rd", "userPermissionCode": 1, "familyName": "Yamada", "givenName": "Taro", "postalCode": "899-7103", "address": "鹿児島県志布志市志布志町志布志2-1-1", "fixedPhoneNumber": "099-472-1111", "mobilePhoneNumber": "090-1234-5678", "remarks": "日本に実際に存在するややこしい地名です。"}
+/// サインアップリクエスト・ボディ
 /// ```
 #[derive(Debug, Clone, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -91,15 +91,15 @@ pub struct SignUpReqBody {
     pub remarks: Option<String>,
 }
 
-/// サイン・アップ・レスポンス・ボディ
+/// サインアップレスポンス・ボディ
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SignUpResBody {
     /// ユーザーID
     pub id: Uuid,
-    /// Eメール・アドレス
+    /// Eメールアドレス
     pub email: String,
-    /// アクティブ・フラグ
+    /// アクティブフラグ
     pub active: bool,
     /// ユーザー権限コード
     pub user_permission_code: i16,
@@ -145,7 +145,56 @@ impl From<SignUpUseCaseOutput> for SignUpResBody {
     }
 }
 
-/// ユーザー・リスト
+/// サインイン
+pub async fn sign_in(
+    context: web::Data<RequestContext>,
+    request_body: web::Json<SignInReqBody>,
+) -> ProcessRequestResult<HttpResponse> {
+    let password_settings = &context.password_settings;
+    let authorization_settings = &context.authorization_settings;
+    let repository = context.user_repository();
+    let email = EmailAddress::new(request_body.0.email).map_err(ProcessRequestError::from)?;
+    let password = RawPassword::new(request_body.0.password).map_err(ProcessRequestError::from)?;
+    let input = SignInUseCaseInput { email, password };
+
+    let tokens =
+        use_cases::accounts::sign_in(password_settings, authorization_settings, repository, input)
+            .await
+            .map_err(ProcessRequestError::from)?;
+
+    // TODO: レスポンスヘッダに、クッキーにアクセス及びリクエストトークンを設定する`Set-Cookie`を追加する。
+
+    Ok(HttpResponse::Ok().json(JwtTokenPairResBody::from(tokens)))
+}
+
+/// サインインリクエスト・ボディ
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct SignInReqBody {
+    /// Eメールアドレス
+    pub email: String,
+    /// パス話ワード
+    pub password: SecretString,
+}
+
+/// JWTトークンペア・レスポンス・ボディ
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct JwtTokenPairResBody {
+    /// アクセストークン
+    pub access: String,
+    /// リフレッシュトークン
+    pub refresh: String,
+}
+
+impl From<JwtTokenPair> for JwtTokenPairResBody {
+    fn from(value: JwtTokenPair) -> Self {
+        Self {
+            access: value.access.expose_secret().to_string(),
+            refresh: value.refresh.expose_secret().to_string(),
+        }
+    }
+}
+
+/// ユーザーリスト
 async fn list_users(context: web::Data<RequestContext>) -> ProcessRequestResult<HttpResponse> {
     let repo = context.user_repository();
     let users = use_cases::accounts::list_users(repo)

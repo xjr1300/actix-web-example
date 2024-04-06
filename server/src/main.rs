@@ -24,6 +24,8 @@ async fn main() -> anyhow::Result<()> {
     // アプリケーション設定を取得
     let settings_dir = Path::new(SETTINGS_DIR_NAME);
     let app_settings = retrieve_app_settings(app_env, settings_dir)?;
+    // 認証設定を検証
+    app_settings.authorization.validate()?;
 
     // サブスクライバを初期化
     let subscriber = generate_log_subscriber(
@@ -35,7 +37,7 @@ async fn main() -> anyhow::Result<()> {
 
     // データベース接続プールを取得
     let pool = app_settings.database.connection_pool();
-    let context = RequestContext::new(app_settings.password, pool);
+    let context = RequestContext::new(app_settings.password, app_settings.authorization, pool);
 
     // Httpサーバーがリッスンするポートをバインド
     let address = format!("localhost:{}", app_settings.http_server.port);

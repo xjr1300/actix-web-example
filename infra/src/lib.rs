@@ -5,19 +5,21 @@ use sqlx::PgPool;
 
 use domain::repositories::user::UserRepository;
 use repositories::postgres::user::PgUserRepository;
-use use_cases::passwords::PasswordSettings;
+use use_cases::settings::{AuthorizationSettings, PasswordSettings};
 
-/// リクエスト・コンテキスト
+/// リクエストコンテキスト
 #[derive(Debug, Clone)]
 pub struct RequestContext {
-    /// パスワードに振りかけるペッパー
+    /// パスワード設定
     pub password_settings: PasswordSettings,
+    /// 認証設定
+    pub authorization_settings: AuthorizationSettings,
     /// データベース接続プール
     pool: PgPool,
 }
 
 impl RequestContext {
-    /// リクエスト・コンテキストを構築する。
+    /// リクエストコンテキストを構築する。
     ///
     /// # 引数
     ///
@@ -25,19 +27,24 @@ impl RequestContext {
     ///
     /// # 戻り値
     ///
-    /// リクエスト・コンテキスト
-    pub fn new(password_settings: PasswordSettings, pool: PgPool) -> Self {
+    /// リクエストコンテキスト
+    pub fn new(
+        password_settings: PasswordSettings,
+        authorization_settings: AuthorizationSettings,
+        pool: PgPool,
+    ) -> Self {
         Self {
             password_settings,
+            authorization_settings,
             pool,
         }
     }
 
-    /// ユーザー・リポジトリを返す。
+    /// ユーザーリポジトリを返す。
     ///
     /// # 戻り値
     ///
-    /// ユーザー・リポジトリ
+    /// ユーザーリポジトリ
     pub fn user_repository(&self) -> impl UserRepository {
         PgUserRepository::new(self.pool.clone())
     }

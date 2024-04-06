@@ -6,7 +6,7 @@ use crate::models::primitives::*;
 use crate::models::user::{User, UserId, UserPermissionCode, UserValidator};
 use crate::DomainResult;
 
-/// ユーザー・リポジトリ
+/// ユーザーリポジトリ
 #[async_trait]
 pub trait UserRepository: Sync + Send {
     /// ユーザーのリストを取得する。
@@ -15,6 +15,17 @@ pub trait UserRepository: Sync + Send {
     ///
     /// ユーザーを格納したベクタ
     async fn list(&self) -> DomainResult<Vec<User>>;
+
+    /// ユーザーのクレデンシャルを取得する。
+    ///
+    /// # 引数
+    ///
+    /// * `email` - ユーザーのEメールアドレス
+    ///
+    /// # 戻り値
+    ///
+    /// ユーザーのクレデンシャル
+    async fn user_credential(&self, email: EmailAddress) -> DomainResult<Option<UserCredential>>;
 
     /// ユーザーを登録する。
     ///
@@ -28,7 +39,7 @@ pub trait UserRepository: Sync + Send {
     async fn create(&self, user: SignUpInput) -> DomainResult<SignUpOutput>;
 }
 
-/// サイン・アップするユーザー
+/// サインアップするユーザー
 #[derive(Debug, Clone, Builder)]
 #[builder_validation(func = "validate_user")]
 pub struct SignUpInput {
@@ -38,7 +49,7 @@ pub struct SignUpInput {
     pub email: EmailAddress,
     /// パスワード
     pub password: PhcPassword,
-    /// アクティブ・フラグ
+    /// アクティブフラグ
     pub active: bool,
     /// ユーザー権限コード
     pub user_permission_code: UserPermissionCode,
@@ -67,12 +78,13 @@ impl UserValidator for SignUpInput {
     }
 }
 
+/// サインアップしたユーザー
 pub struct SignUpOutput {
     /// ユーザーID
     pub id: UserId,
-    /// Eメール・アドレス
+    /// Eメールアドレス
     pub email: EmailAddress,
-    /// アクティブ・フラグ
+    /// アクティブフラグ
     pub active: bool,
     /// ユーザー権限コード
     pub user_permission_code: UserPermissionCode,
@@ -94,4 +106,20 @@ pub struct SignUpOutput {
     pub created_at: OffsetDateTime,
     /// 更新日時
     pub updated_at: OffsetDateTime,
+}
+
+/// ユーザークレデンシャル
+pub struct UserCredential {
+    /// ユーザーID
+    pub user_id: UserId,
+    /// Eメールアドレス
+    pub email: EmailAddress,
+    /// ユーザーのPHCパスワード文字列
+    pub password: PhcPassword,
+    /// アクティブフラグ
+    pub active: bool,
+    /// ユーザーが最初にサインインの試行に失敗した日時
+    pub attempted_at: Option<OffsetDateTime>,
+    /// ユーザーが最初にサインインの試行に失敗した日時から、サインインに失敗した回数
+    pub number_of_failures: i16,
 }

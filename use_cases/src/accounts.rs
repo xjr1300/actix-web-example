@@ -1,21 +1,28 @@
 use time::OffsetDateTime;
 
+use secrecy::SecretString;
+
 use domain::models::primitives::*;
 use domain::models::user::{User, UserId, UserPermissionCode};
 use domain::repositories::user::{SignUpInputBuilder, SignUpOutput, UserRepository};
 use macros::Builder;
 
-use crate::passwords::{generate_phc_string, PasswordSettings};
-use crate::{ProcessUseCaseResult, UseCaseError};
+use crate::jwt::generate_token_pair;
+use crate::passwords::{generate_phc_string, verify_password};
+use crate::settings::{AuthorizationSettings, PasswordSettings};
+use crate::{
+    UseCaseError, UseCaseErrorKind, UseCaseResult, ERR_SAME_EMAIL_ADDRESS_IS_REGISTERED,
+    ERR_SPECIFY_FIXED_OR_MOBILE_NUMBER,
+};
 
-/// サイン・アップ・ユース・ケース入力
+/// サインアップユースケース入力
 #[derive(Debug, Clone, Builder)]
 pub struct SignUpUseCaseInput {
     /// Eメールアドレス
     pub email: EmailAddress,
     /// パスワード
     pub password: RawPassword,
-    /// アクティブ・フラグ
+    /// アクティブフラグ
     pub active: bool,
     /// ユーザー権限コード
     pub user_permission_code: UserPermissionCode,
@@ -35,13 +42,13 @@ pub struct SignUpUseCaseInput {
     pub remarks: OptionalRemarks,
 }
 
-/// サイン・アップ・ユース・ケース出力
+/// サインアップユースケース出力
 pub struct SignUpUseCaseOutput {
     /// ユーザーID
     pub id: UserId,
     /// Eメールアドレス
     pub email: EmailAddress,
-    /// アクティブ・フラグ
+    /// アクティブフラグ
     pub active: bool,
     /// ユーザー権限コード
     pub user_permission_code: UserPermissionCode,
@@ -91,7 +98,7 @@ impl From<SignUpOutput> for SignUpUseCaseOutput {
 ///
 /// * `user` - 登録するユーザー
 /// * `pepper` - 未加工なパスワードに付与するペッパー
-/// * `repository` - ユーザー・リポジトリ
+/// * `repository` - ユーザーリポジトリ
 ///
 /// # 戻り値
 ///
@@ -104,7 +111,7 @@ pub async fn sign_up(
     settings: &PasswordSettings,
     repository: impl UserRepository,
     input: SignUpUseCaseInput,
-) -> ProcessUseCaseResult<SignUpUseCaseOutput> {
+) -> UseCaseResult<SignUpUseCaseOutput> {
     let id = UserId::default();
     let password = generate_phc_string(&input.password, settings).map_err(UseCaseError::from)?;
 
@@ -130,8 +137,10 @@ pub async fn sign_up(
         Err(e) => {
             let message = e.to_string();
             if message.contains("ak_users_email") {
-                Err(UseCaseError::domain_rule(
-                    "同じEメール・アドレスを持つユーザーが、すでに登録されています。",
+                Err(UseCaseError::new(
+                    UseCaseErrorKind::DomainRule,
+                    ERR_SAME_EMAIL_ADDRESS_IS_REGISTERED,
+                    "同じEメールアドレスを持つユーザーが、すでに登録されています。",
                 ))
             } else if message.contains("fk_users_permission") {
                 Err(UseCaseError::validation(
@@ -139,7 +148,9 @@ pub async fn sign_up(
                 ))
             } else if message.contains("ck_users_either_phone_numbers_must_be_not_null") {
                 // インフラストラクチャ層で検証されるため、実際にはここは実行されない
-                Err(UseCaseError::domain_rule(
+                Err(UseCaseError::new(
+                    UseCaseErrorKind::DomainRule,
+                    ERR_SPECIFY_FIXED_OR_MOBILE_NUMBER,
                     "固定電話番号または携帯電話番号を指定する必要があります。",
                 ))
             } else {
@@ -149,17 +160,93 @@ pub async fn sign_up(
     }
 }
 
+/// ユーザーがサインインする。
+///
+/// # 引数
+///
+/// * `password_settings` - パスワード設定
+/// * `authorization_settings` - 認証設定
+/// * `repository` - ユーザーリポジトリ
+/// * `input` - サインインユースケース入力
+///
+/// # 戻り値
+///
+/// * アクセストークンとリフレッシュトークン
+pub async fn sign_in(
+    password_settings: &PasswordSettings,
+    authorization_settings: &AuthorizationSettings,
+    repository: impl UserRepository,
+    input: SignInUseCaseInput,
+) -> UseCaseResult<JwtTokenPair> {
+    // 不許可／未認証エラー
+    let unauthorized_error =
+        UseCaseError::unauthorized("Eメールアドレスまたはパスワードが間違っています。");
+
+    // ユーザーのクレデンシャルを取得
+    let credential = repository
+        .user_credential(input.email)
+        .await
+        .map_err(UseCaseError::from)?;
+    if credential.is_none() {
+        return Err(unauthorized_error);
+    }
+    let credential = credential.unwrap();
+    // アカウントがアクティブか確認
+    if !credential.active {
+        return Err(UseCaseError::unauthorized(
+            "ユーザーのアカウントがロックされています。",
+        ));
+    }
+    // パスワードを検証
+    if !verify_password(
+        &input.password,
+        &password_settings.pepper,
+        &credential.password,
+    )? {
+        return Err(unauthorized_error);
+    }
+
+    // アクセス及びリフレッシュトークンを生成
+    let dt = OffsetDateTime::now_utc();
+    let tokens = generate_token_pair(credential.user_id, dt, authorization_settings)?;
+
+    Ok(JwtTokenPair {
+        access: tokens.access,
+        refresh: tokens.refresh,
+    })
+}
+
+/// サインインユースケース入力
+pub struct SignInUseCaseInput {
+    /// Eメールアドレス
+    pub email: EmailAddress,
+    /// 加工していないパスワード
+    pub password: RawPassword,
+}
+
+/// JWTトークンの正規表現
+pub const JWT_TOKEN_EXPRESSION: &str =
+    r#"^([a-zA-Z0-9_=]+)\.([a-zA-Z0-9_=]+)\.([a-zA-Z0-9_\-\+\/=]*)$"#;
+
+/// JWTアクセストークンとリフレッシュトークン
+pub struct JwtTokenPair {
+    /// アクセストークン
+    pub access: SecretString,
+    /// リフレッシュトークン
+    pub refresh: SecretString,
+}
+
 /// ユーザーのリストを取得する。
 ///
 /// # 引数
 ///
-/// * `repository` - ユーザー・リポジトリ
+/// * `repository` - ユーザーリポジトリ
 ///
 /// # 戻り値
 ///
 /// * ユーザーを格納したベクタ
 #[tracing::instrument(name = "list users use case", skip(repository))]
-pub async fn list_users(repository: impl UserRepository) -> ProcessUseCaseResult<Vec<User>> {
+pub async fn list_users(repository: impl UserRepository) -> UseCaseResult<Vec<User>> {
     repository
         .list()
         .await

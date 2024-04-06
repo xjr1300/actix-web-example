@@ -31,7 +31,7 @@ pub fn derive_primitive_display(input: TokenStream) -> TokenStream {
 /// `validator`クレートの`Validate`導出マクロと合わせて使用することを前提にしており、
 /// `value`フィールドを持つ構造体に、`new`メソッドを実装する。
 ///
-/// ドメイン・プリミティブ構造体のインスタンスを構築する`new`メソッドは、引数として渡された
+/// ドメインプリミティブ構造体のインスタンスを構築する`new`メソッドは、引数として渡された
 /// 文字列の前後の空白文字を除去した文字列を値として格納する。
 ///
 /// `primitive`属性の`name`には、プリミティブの名前を指定する。
@@ -40,8 +40,8 @@ pub fn derive_primitive_display(input: TokenStream) -> TokenStream {
 /// ```text
 /// #[derive(Validator, StringPrimitive)]
 /// #[primitive(
-///     name = "Eメール・アドレス",
-///     message = "文字列がEメール・アドレスの形式と一致していません。"
+///     name = "Eメールアドレス",
+///     message = "文字列がEメールアドレスの形式と一致していません。"
 /// )]
 /// pub struct EmailAddress {
 ///     #[validate(email)]

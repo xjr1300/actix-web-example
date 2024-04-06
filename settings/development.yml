@@ -1,5 +1,7 @@
 http_server:
   port: 8000
+authorization:
+  secure: false
 database:
   require_ssl: false
   log_statements: trace

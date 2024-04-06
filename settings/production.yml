@@ -1,5 +1,6 @@
 http_server:
   port: 443
+authorization:
   secure: true
 database:
   require_ssl: true

@@ -88,7 +88,7 @@ impl<T> EntityId<T> {
 
 /// コード
 ///
-/// ジェネリック引数`T1`はコード・テーブルの型を指定する。
+/// ジェネリック引数`T1`はコードテーブルの型を指定する。
 /// ジェネリック引数`T2`はコードの型を指定する。
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct NumericCode<T1, T2>
@@ -131,19 +131,19 @@ impl<T1, T2: Clone + Copy> NumericCode<T1, T2> {
     }
 }
 
-/// Eメール・アドレスの長さ
+/// Eメールアドレスの長さ
 ///
-/// Eメール・アドレスの文字数の最小値は規定されていないため、"a@a.jp"のようなアドレスを想定して6文字とした。
-/// Eメール・アドレスの文字数の最大値は、次を参照して設定した。
+/// Eメールアドレスの文字数の最小値は規定されていないため、"a@a.jp"のようなアドレスを想定して6文字とした。
+/// Eメールアドレスの文字数の最大値は、次を参照して設定した。
 /// <https://stackoverflow.com/questions/386294/what-is-the-maximum-length-of-a-valid-email-address>
 const EMAIL_ADDRESS_MIN_LEN: u64 = 6;
 const EMAIL_ADDRESS_MAX_LEN: u64 = 254;
 
-/// Eメール・アドレス
+/// Eメールアドレス
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Validate, PrimitiveDisplay, StringPrimitive)]
 #[primitive(
-    name = "Eメール・アドレス",
-    message = "Eメール・アドレスの形式が間違っています。"
+    name = "Eメールアドレス",
+    message = "Eメールアドレスの形式が間違っています。"
 )]
 pub struct EmailAddress {
     #[validate(email)]
@@ -185,7 +185,7 @@ const PASSWORD_SYMBOLS_CANDIDATES: &str = r#"~`!@#$%^&*()_-+={[}]|\:;"'<,>.?/"#;
 /// 指定された数だけ同じ文字をパスワードに含めることを許可
 const PASSWORD_MAX_NUMBER_OF_CHAR_APPEARANCES: u64 = 3;
 
-/// パスワードがドメイン・ルールを満たしているか確認する。
+/// パスワードがドメインルールを満たしているか確認する。
 fn validate_plain_password(s: &str) -> DomainResult<()> {
     // パスワードの文字数を確認
     if s.len() < PASSWORD_MIN_LENGTH {
@@ -345,7 +345,7 @@ mod tests {
         }
     }
 
-    /// Eメール・アドレスとして妥当な文字列から、Eメール・アドレスを構築できることを確認
+    /// Eメールアドレスとして妥当な文字列から、Eメール・アドレスを構築できることを確認
     #[test]
     fn construct_email_address_from_valid_strings() {
         let candidates = ["a@a.jp", "foo@example.com"];
@@ -355,7 +355,7 @@ mod tests {
         }
     }
 
-    /// Eメール・アドレスとして無効な文字列から、Eメールアドレスを構築できないことを確認
+    /// Eメールアドレスとして無効な文字列から、Eメールアドレスを構築できないことを確認
     #[test]
     fn can_not_construct_email_address_from_invalid_strings() {
         let domain = "@example.com";

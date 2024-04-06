@@ -1,6 +1,6 @@
 use crate::helpers::{spawn_test_app, split_response};
 
-/// ヘルス・チェック・ハンドラ
+/// ヘルスチェック・ハンドラ
 #[tokio::test]
 #[ignore]
 async fn health_check_works() -> anyhow::Result<()> {

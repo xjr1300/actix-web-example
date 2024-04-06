@@ -4,7 +4,7 @@ use std::path::Path;
 use anyhow::Context as _;
 use once_cell::sync::Lazy;
 use reqwest::header::{HeaderValue, CONTENT_TYPE};
-use secrecy::SecretString;
+use secrecy::{ExposeSecret, SecretString};
 use sqlx::{Connection as _, Executor as _, PgConnection, PgPool};
 use uuid::Uuid;
 
@@ -15,15 +15,18 @@ use configurations::settings::{
 use domain::models::primitives::*;
 use domain::models::user::{UserId, UserPermission, UserPermissionCode, UserPermissionName};
 use domain::repositories::user::{SignUpInput, SignUpInputBuilder};
+use domain::repositories::user::{SignUpOutput, UserRepository};
+use infra::repositories::postgres::user::PgUserRepository;
 use infra::routes::accounts::SignUpReqBody;
 use infra::RequestContext;
 use server::startup::build_http_server;
 use server::telemetry::{generate_log_subscriber, init_log_subscriber};
-use use_cases::passwords::{generate_phc_string, PasswordSettings};
+use use_cases::passwords::generate_phc_string;
+use use_cases::settings::PasswordSettings;
 
 /// 分解したレスポンス
 pub struct ResponseParts {
-    /// ステータス・コード
+    /// ステータスコード
     pub status_code: reqwest::StatusCode,
     /// ヘッダ
     pub headers: reqwest::header::HeaderMap,
@@ -31,7 +34,7 @@ pub struct ResponseParts {
     pub body: String,
 }
 
-/// レスポンスをステータス・コード、ヘッダ、ボディに分割する。
+/// レスポンスをステータスコード、ヘッダ、ボディに分割する。
 pub async fn split_response(response: reqwest::Response) -> anyhow::Result<ResponseParts> {
     Ok(ResponseParts {
         status_code: response.status(),
@@ -40,7 +43,7 @@ pub async fn split_response(response: reqwest::Response) -> anyhow::Result<Respo
     })
 }
 
-/// ログ・サブスクライバ
+/// ログサブスクライバ
 static TRACING: Lazy<()> = Lazy::new(|| {
     let default_level = log::Level::Info;
     let subscriber_name = String::from("test");
@@ -69,7 +72,6 @@ pub struct TestApp {
 impl TestApp {
     pub async fn sign_up(&self, body: String) -> anyhow::Result<reqwest::Response> {
         let client = reqwest::Client::new();
-
         client
             .post(&format!("{}/accounts/sign-up", self.root_uri))
             .body(body)
@@ -79,14 +81,39 @@ impl TestApp {
             .map_err(|e| e.into())
     }
 
+    pub async fn sign_in(
+        &self,
+        email: String,
+        password: SecretString,
+    ) -> anyhow::Result<reqwest::Response> {
+        let client = reqwest::Client::new();
+        let body = format!(
+            r#"{{"email": "{}", "password": "{}" }}"#,
+            email,
+            password.expose_secret()
+        );
+        client
+            .post(&format!("{}/accounts/sign-in", self.root_uri))
+            .body(body)
+            .header(CONTENT_TYPE, HeaderValue::from_static("application/json"))
+            .send()
+            .await
+            .map_err(|e| e.into())
+    }
+
     pub async fn list_users(&self) -> anyhow::Result<reqwest::Response> {
         let client = reqwest::Client::new();
-
         client
             .get(&format!("{}/accounts/users", self.root_uri))
             .send()
             .await
             .map_err(|e| e.into())
+    }
+
+    pub async fn register_user(&self, input: SignUpInput) -> anyhow::Result<SignUpOutput> {
+        let repo = PgUserRepository::new(self.pool.clone());
+
+        repo.create(input).await.map_err(|e| e.into())
     }
 }
 
@@ -114,7 +141,11 @@ pub async fn spawn_test_app() -> anyhow::Result<TestApp> {
     // テスト用のデータベースを作成して、接続及び構成
     let pool = configure_database(&settings.database).await?;
     // テスト用のデータベースに接続するリポジトリのコンテナを構築
-    let context = RequestContext::new(settings.password.clone(), pool.clone());
+    let context = RequestContext::new(
+        settings.password.clone(),
+        settings.authorization.clone(),
+        pool.clone(),
+    );
 
     // ポート0を指定してTCPソケットにバインドすることで、OSにポート番号の決定を委譲
     let listener = TcpListener::bind("localhost:0").context("failed to bind random port")?;

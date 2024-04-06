@@ -1,23 +1,10 @@
-use anyhow::anyhow;
 use argon2::password_hash::SaltString;
 use argon2::{Algorithm, Argon2, Params, PasswordHash, PasswordHasher, PasswordVerifier, Version};
 use domain::models::primitives::{PhcPassword, RawPassword};
 use secrecy::{ExposeSecret as _, SecretString};
 
-use domain::{DomainError, DomainResult};
-
-/// パスワード設定
-#[derive(Debug, Clone, serde::Deserialize)]
-pub struct PasswordSettings {
-    /// ペッパー
-    pub pepper: SecretString,
-    /// パスワードをハッシュ化するときのメモリ・サイズ
-    pub hash_memory: u32,
-    /// パスワードをハッシュ化するときの反復回数
-    pub hash_iterations: u32,
-    /// パスワードをハッシュ化するときの並列度
-    pub hash_parallelism: u32,
-}
+use crate::settings::PasswordSettings;
+use crate::{UseCaseError, UseCaseResult};
 
 /// Argon2idアルゴリズムでパスワードをハッシュ化した、PHC文字列を生成する。
 ///
@@ -32,7 +19,7 @@ pub struct PasswordSettings {
 pub fn generate_phc_string(
     raw_password: &RawPassword,
     settings: &PasswordSettings,
-) -> DomainResult<PhcPassword> {
+) -> UseCaseResult<PhcPassword> {
     // パスワードにペッパーを振りかけ
     let peppered_password = sprinkle_pepper_on_password(raw_password, &settings.pepper);
     // ソルトを生成
@@ -45,19 +32,17 @@ pub fn generate_phc_string(
         None,
     )
     .map_err(|e| {
-        DomainError::Unexpected(anyhow!(
-            "Argon2パラメーターを構築しているときに、エラーが発生しました。{}",
-            e
-        ))
+        tracing::error!("{} ({}:{})", e, file!(), line!());
+        UseCaseError::unexpected("Argon2パラメーターを構築しているときに、エラーが発生しました。")
     })?;
     // PHC文字列を生成
     let phc = Argon2::new(Algorithm::Argon2id, Version::V0x13, params)
         .hash_password(peppered_password.expose_secret().as_bytes(), &salt)
         .map_err(|e| {
-            DomainError::Unexpected(anyhow!(
-                "Argon2でハッシュ化してPHC文字列を生成するときに、エラーが発生しました。{}",
-                e
-            ))
+            tracing::error!("{} ({}:{})", e, file!(), line!());
+            UseCaseError::unexpected(
+                "Argon2でハッシュ化してPHC文字列を生成するときに、エラーが発生しました。",
+            )
         })?
         .to_string();
 
@@ -81,13 +66,13 @@ pub fn verify_password(
     raw_password: &RawPassword,
     pepper: &SecretString,
     target_phc: &PhcPassword,
-) -> DomainResult<bool> {
+) -> UseCaseResult<bool> {
     // PHC文字列をパースしてハッシュ値を取得
     let expected_hash = PasswordHash::new(target_phc.value.expose_secret()).map_err(|e| {
-        DomainError::Unexpected(anyhow!(
-            "PHC文字列からハッシュ・アルゴリズムを取得するときに、エラーが発生しました。{}",
-            e
-        ))
+        tracing::error!("{} ({}:{})", e, file!(), line!());
+        UseCaseError::unexpected(
+            "PHC文字列からハッシュアルゴリズムを取得するときに、エラーが発生しました。",
+        )
     })?;
     // パスワードにコショウを振りかけ
     let expected_password = sprinkle_pepper_on_password(raw_password, pepper);

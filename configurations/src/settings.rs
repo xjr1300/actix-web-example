@@ -9,9 +9,9 @@ use serde::{Deserialize as _, Deserializer};
 use sqlx::postgres::{PgConnectOptions, PgPoolOptions, PgSslMode};
 use sqlx::{ConnectOptions as _, PgPool};
 
-use use_cases::passwords::PasswordSettings;
+use use_cases::settings::{AuthorizationSettings, PasswordSettings};
 
-/// 設定ファイル・ディレクトリ・パス
+/// 設定ファイルディレクトリ・パス
 pub const SETTINGS_DIR_NAME: &str = "settings";
 
 /// 動作環境を表現する環境変数とそのデフォルト値
@@ -59,6 +59,8 @@ pub struct AppSettings {
     pub http_server: HttpServerSettings,
     /// パスワード設定
     pub password: PasswordSettings,
+    /// 人s表設定
+    pub authorization: AuthorizationSettings,
     /// データベース設定
     pub database: DatabaseSettings,
     /// ロギング設定
@@ -68,22 +70,12 @@ pub struct AppSettings {
 /// HTTPサーバー設定
 #[derive(Debug, Clone, serde::Deserialize)]
 pub struct HttpServerSettings {
-    /// リスニング・ポート番号
+    /// リスニングポート番号
     pub port: u16,
-    /// ユーザーのサイン・インの試行を許可する期間（秒）
-    pub sign_in_attempting_seconds: u32,
-    /// ユーザーのアカウントをロックするまでのサイン・イン失敗回数
-    pub number_of_sign_in_failures: u8,
-    /// JWTトークンを生成するときの秘密鍵
-    pub jwt_token_secret: SecretString,
-    /// アクセス・トークンの有効期限（秒）
-    pub access_token_seconds: u32,
-    /// リフレッシュ・トークンの有効期限（秒）
-    pub refresh_token_seconds: u32,
-    /// アクセス及びリフレッシュ・トークンを保存するクッキーに付与するSameSite属性
+    /// アクセス及びリフレッシュトークンを保存するクッキーに付与するSameSite属性
     #[serde(deserialize_with = "deserialize_same_site")]
     pub same_site: SameSite,
-    /// アクセス及びリフレッシュ・トークンを保存するクッキーにSecure属性を付けるか示すフラグ
+    /// アクセス及びリフレッシュトークンを保存するクッキーにSecure属性を付けるか示すフラグ
     pub secure: bool,
 }
 
@@ -127,7 +119,7 @@ pub struct DatabaseSettings {
 /// ロギング設定
 #[derive(Debug, Clone, serde::Deserialize)]
 pub struct LoggingSettings {
-    /// ログ・レベル
+    /// ログレベル
     pub level: log::Level,
 }
 
@@ -222,7 +214,7 @@ pub fn retrieve_app_settings<P: AsRef<Path>>(
 ///
 /// # 引数
 ///
-/// * `settings_dir` - 設定ファイル・ディレクトリ・パス
+/// * `settings_dir` - 設定ファイルディレクトリ・パス
 /// * `file_name` - 設定ファイルの名前
 ///
 /// # 戻り値
@@ -265,7 +257,7 @@ pub mod tests {
 
     /// 開発環境のアプリケーション設定を正しくロードできることを確認
     ///
-    /// ワークスペース・ディレクトリ内の`.env`ファイルが存在することを想定している。
+    /// ワークスペースディレクトリ内の`.env`ファイルが存在することを想定している。
     #[test]
     fn can_retrieve_app_settings_for_development() -> anyhow::Result<()> {
         let crate_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
@@ -289,11 +281,12 @@ pub mod tests {
 
     /// 運用環境のアプリケーション設定を正しくロードできることを確認
     ///
-    /// ワークスペース・ディレクトリ内の`.env`ファイルが存在することを想定している。
+    /// ワークスペースディレクトリ内の`.env`ファイルが存在することを想定している。
     #[test]
     fn can_retrieve_app_settings_for_production() -> anyhow::Result<()> {
         let crate_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
         let env_file = crate_dir.join("..").join(".env");
+        println!("enf_file: {}", env_file.display());
         dotenvx::from_path(env_file)?;
 
         let settings_dir = crate_dir.join("..").join(SETTINGS_DIR_NAME);
