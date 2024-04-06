@@ -7,8 +7,10 @@ edition = "2021"
 publish = false
 
 [dev-dependencies]
+actix-web = "4.5.1"
 anyhow = "1.0.81"
 configurations = { path = "../configurations" }
+cookie = "0.18.1"
 domain = { path = "../domain" }
 dotenvx = "0.0.2"
 infra = { path = "../infra" }

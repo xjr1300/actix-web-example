@@ -3,17 +3,18 @@ use std::{collections::BTreeMap, str::FromStr as _};
 use hmac::{Hmac, Mac};
 use jwt::{SignWithKey as _, VerifyWithKey as _};
 use secrecy::{ExposeSecret as _, SecretString};
-use sha2::Sha512;
+use sha2::Sha256;
 use time::OffsetDateTime;
 use uuid::Uuid;
 
 use domain::models::user::UserId;
 
-use crate::settings::AuthorizationSettings;
 use crate::{UseCaseError, UseCaseResult};
 
 const SUBJECT_KEY: &str = "sub";
 const EXPIRATION_KEY: &str = "exp";
+
+type HmacKey = Hmac<Sha256>;
 
 /// クレイム
 #[derive(Debug, Clone, Copy)]
@@ -35,7 +36,7 @@ pub struct Claim {
 ///
 /// JWT
 fn generate_token(claim: Claim, secret_key: &SecretString) -> UseCaseResult<SecretString> {
-    let key: Hmac<Sha512> = generate_hmac_key(secret_key)?;
+    let key: HmacKey = generate_hmac_key(secret_key)?;
     let mut claims = BTreeMap::new();
     claims.insert(SUBJECT_KEY, claim.user_id.value.to_string());
     claims.insert(EXPIRATION_KEY, claim.expiration.to_string());
@@ -47,7 +48,7 @@ fn generate_token(claim: Claim, secret_key: &SecretString) -> UseCaseResult<Secr
     Ok(SecretString::new(token))
 }
 
-fn generate_hmac_key(secret_key: &SecretString) -> UseCaseResult<Hmac<Sha512>> {
+fn generate_hmac_key(secret_key: &SecretString) -> UseCaseResult<HmacKey> {
     Hmac::new_from_slice(secret_key.expose_secret().as_bytes()).map_err(|e| {
         tracing::error!("{} ({}:{})", e, file!(), line!());
         UseCaseError::unexpected(
@@ -64,39 +65,32 @@ pub struct TokenPair {
     pub refresh: SecretString,
 }
 
-const MINUS_UNIX_TIMESTAMP_MESSAGE: &str =
-    "システムの現在日時を示すUNIXタイムスタンプがマイナスです。";
-
 /// JWTのアクセストークンとリフレッシュトークンを生成する。
 ///
 /// # 引数
 ///
 /// * `user_id` - ユーザーID
-/// * `dt` - JWTの有効期限の起点となる日時
-/// * `settings` - パスワード設定
+/// * `access_expiration` - アクセストークンの有効期限
+/// * `refresh_expiration` - リフレッシュトークンの有効期限
+/// * `secret_key` - JWTを作成する秘密鍵
 pub fn generate_token_pair(
     user_id: UserId,
-    dt: OffsetDateTime,
-    settings: &AuthorizationSettings,
+    access_expiration: OffsetDateTime,
+    refresh_expiration: OffsetDateTime,
+    secret_key: &SecretString,
 ) -> UseCaseResult<TokenPair> {
-    let timestamp = dt.unix_timestamp();
-    if timestamp < 0 {
-        tracing::error!("{} ({}:{})", MINUS_UNIX_TIMESTAMP_MESSAGE, file!(), line!());
-        return Err(UseCaseError::unexpected(MINUS_UNIX_TIMESTAMP_MESSAGE));
-    }
-    let timestamp = timestamp as u64;
     // アクセストークンを生成
     let claim = Claim {
         user_id,
-        expiration: timestamp + settings.access_token_seconds,
+        expiration: access_expiration.unix_timestamp() as u64,
     };
-    let access_token = generate_token(claim, &settings.jwt_token_secret)?;
+    let access_token = generate_token(claim, secret_key)?;
     // リフレッシュトークンを生成
     let claim = Claim {
         user_id,
-        expiration: timestamp + settings.refresh_token_seconds,
+        expiration: refresh_expiration.unix_timestamp() as u64,
     };
-    let refresh_token = generate_token(claim, &settings.jwt_token_secret)?;
+    let refresh_token = generate_token(claim, secret_key)?;
 
     Ok(TokenPair {
         access: access_token,
@@ -118,7 +112,7 @@ pub fn retrieve_claim_from_token(
     token: &SecretString,
     secret_key: &SecretString,
 ) -> UseCaseResult<Claim> {
-    let key: Hmac<Sha512> = generate_hmac_key(secret_key)?;
+    let key: HmacKey = generate_hmac_key(secret_key)?;
     let claims: BTreeMap<String, String> =
         token.expose_secret().verify_with_key(&key).map_err(|e| {
             tracing::error!("{} ({}:{})", e, file!(), line!());
@@ -169,6 +163,8 @@ const INVALID_EXPIRATION_IN_PAYLOAD: &str =
 
 #[cfg(test)]
 mod tests {
+    use time::Duration;
+
     use crate::settings::tests::authorization_settings;
 
     use super::*;
@@ -201,7 +197,14 @@ mod tests {
         let settings = authorization_settings();
         let user_id = UserId::default();
         let dt = OffsetDateTime::now_utc();
-        let tokens = generate_token_pair(user_id, dt, &settings)?;
+        let access_expiration = dt + Duration::seconds(settings.access_token_seconds as i64);
+        let refresh_expiration = dt + Duration::seconds(settings.refresh_token_seconds as i64);
+        let tokens = generate_token_pair(
+            user_id,
+            access_expiration,
+            refresh_expiration,
+            &settings.jwt_token_secret,
+        )?;
         assert_ne!(
             tokens.access.expose_secret(),
             tokens.refresh.expose_secret(),

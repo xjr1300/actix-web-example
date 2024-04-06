@@ -1,4 +1,4 @@
-use time::OffsetDateTime;
+use time::{Duration, OffsetDateTime};
 
 use secrecy::SecretString;
 
@@ -177,7 +177,7 @@ pub async fn sign_in(
     authorization_settings: &AuthorizationSettings,
     repository: impl UserRepository,
     input: SignInUseCaseInput,
-) -> UseCaseResult<JwtTokenPair> {
+) -> UseCaseResult<SignInUseCaseOutput> {
     // 不許可／未認証エラー
     let unauthorized_error =
         UseCaseError::unauthorized("Eメールアドレスまたはパスワードが間違っています。");
@@ -208,11 +208,22 @@ pub async fn sign_in(
 
     // アクセス及びリフレッシュトークンを生成
     let dt = OffsetDateTime::now_utc();
-    let tokens = generate_token_pair(credential.user_id, dt, authorization_settings)?;
+    let access_expiration =
+        dt + Duration::seconds(authorization_settings.access_token_seconds as i64);
+    let refresh_expiration =
+        dt + Duration::seconds(authorization_settings.refresh_token_seconds as i64);
+    let tokens = generate_token_pair(
+        credential.user_id,
+        access_expiration,
+        refresh_expiration,
+        &authorization_settings.jwt_token_secret,
+    )?;
 
-    Ok(JwtTokenPair {
+    Ok(SignInUseCaseOutput {
         access: tokens.access,
+        access_expiration,
         refresh: tokens.refresh,
+        refresh_expiration,
     })
 }
 
@@ -228,12 +239,16 @@ pub struct SignInUseCaseInput {
 pub const JWT_TOKEN_EXPRESSION: &str =
     r#"^([a-zA-Z0-9_=]+)\.([a-zA-Z0-9_=]+)\.([a-zA-Z0-9_\-\+\/=]*)$"#;
 
-/// JWTアクセストークンとリフレッシュトークン
-pub struct JwtTokenPair {
+/// サインインユースケース出力
+pub struct SignInUseCaseOutput {
     /// アクセストークン
     pub access: SecretString,
+    /// アクセストークンの有効期限
+    pub access_expiration: OffsetDateTime,
     /// リフレッシュトークン
     pub refresh: SecretString,
+    /// リフレッシュトークンの有効期限
+    pub refresh_expiration: OffsetDateTime,
 }
 
 /// ユーザーのリストを取得する。

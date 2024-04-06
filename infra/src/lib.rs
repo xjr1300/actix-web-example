@@ -1,6 +1,7 @@
 pub mod repositories;
 pub mod routes;
 
+use configurations::settings::HttpServerSettings;
 use sqlx::PgPool;
 
 use domain::repositories::user::UserRepository;
@@ -10,6 +11,8 @@ use use_cases::settings::{AuthorizationSettings, PasswordSettings};
 /// リクエストコンテキスト
 #[derive(Debug, Clone)]
 pub struct RequestContext {
+    /// HTTPサーバー設定
+    pub http_server_settings: HttpServerSettings,
     /// パスワード設定
     pub password_settings: PasswordSettings,
     /// 認証設定
@@ -29,11 +32,13 @@ impl RequestContext {
     ///
     /// リクエストコンテキスト
     pub fn new(
+        http_server_settings: HttpServerSettings,
         password_settings: PasswordSettings,
         authorization_settings: AuthorizationSettings,
         pool: PgPool,
     ) -> Self {
         Self {
+            http_server_settings,
             password_settings,
             authorization_settings,
             pool,

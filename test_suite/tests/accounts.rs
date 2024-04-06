@@ -1,11 +1,16 @@
+use std::collections::HashMap;
+
+use actix_web::cookie::SameSite;
+use cookie::Cookie;
 use regex::Regex;
-use reqwest::header::CONTENT_TYPE;
+use reqwest::header::{CONTENT_TYPE, SET_COOKIE};
 use reqwest::StatusCode;
 
 use infra::repositories::postgres::user::insert_user_query;
 use infra::repositories::postgres::PgRepository;
-use infra::routes::accounts::{JwtTokenPairResBody, SignUpReqBody, SignUpResBody, UserResBody};
+use infra::routes::accounts::{SignInResBody, SignUpReqBody, SignUpResBody, UserResBody};
 use infra::routes::ErrorResponseBody;
+use time::{Duration, OffsetDateTime};
 use use_cases::accounts::JWT_TOKEN_EXPRESSION;
 use use_cases::{UseCaseErrorCode, ERR_SAME_EMAIL_ADDRESS_IS_REGISTERED};
 
@@ -200,10 +205,15 @@ async fn user_can_not_sign_up_when_user_permission_code_is_invalid() -> anyhow::
 async fn user_can_sign_in() -> anyhow::Result<()> {
     // 準備
     let app = spawn_test_app().await?;
+    let http_server_settings = &app.settings.http_server;
+    let authorization_settings = &app.settings.authorization;
     let json = sign_up_request_body_json();
     let body = sign_up_request_body(&json);
     let input = sign_up_input(body.clone(), &app.settings.password);
     app.register_user(input.clone()).await?;
+
+    // クッキーにはミリ秒まで記録されないため1秒過去に設定
+    let requesting_at = OffsetDateTime::now_utc() - Duration::seconds(1);
 
     // 実行
     let response = app
@@ -215,21 +225,105 @@ async fn user_can_sign_in() -> anyhow::Result<()> {
         body,
     } = split_response(response).await?;
     let context_type = headers.get(CONTENT_TYPE);
-    println!("body: {body}");
-    let tokens: JwtTokenPairResBody = serde_json::from_str(&body)?;
+    let tokens: SignInResBody = serde_json::from_str(&body)?;
 
-    // 検証
+    // クッキーにはミリ秒まで記録されないため1秒未来に設定
+    let received_at = OffsetDateTime::now_utc() + Duration::seconds(1);
+
+    // レスポンスを検証
     assert_eq!(StatusCode::OK, status_code);
     assert!(context_type.is_some());
     let content_type = context_type.unwrap();
     assert_eq!(CONTENT_TYPE_APPLICATION_JSON, content_type.to_str()?);
+    // レスポンスヘッダを検証
+    let set_cookie_values = headers.get_all(SET_COOKIE);
+    let mut set_cookies: HashMap<String, Cookie> = HashMap::new();
+    for value in set_cookie_values {
+        let cookie = Cookie::parse(value.to_str()?)?;
+        set_cookies.insert(cookie.name().to_string(), cookie);
+    }
+    // `Set-Cookie`にアクセス／リフレッシュトークンが存在するか確認
+    let access_cookie = set_cookies.get("access").unwrap();
+    let refresh_cookie = set_cookies.get("refresh").unwrap();
+    // アクセストークンのクッキーを検証
+    inspect_token_cookie_spec(
+        access_cookie,
+        http_server_settings.same_site,
+        http_server_settings.secure,
+        true,
+        requesting_at,
+        received_at,
+        authorization_settings.access_token_seconds,
+    );
+    // リフレッシュトークンのクッキ＝を検証
+    inspect_token_cookie_spec(
+        refresh_cookie,
+        http_server_settings.same_site,
+        http_server_settings.secure,
+        true,
+        requesting_at,
+        received_at,
+        authorization_settings.refresh_token_seconds,
+    );
+    // アクセス／リフレッシュトークンを検証
     let regex = Regex::new(JWT_TOKEN_EXPRESSION).unwrap();
     assert!(regex.is_match(&tokens.access));
     assert!(regex.is_match(&tokens.refresh));
+    assert_ne!(tokens.access, tokens.refresh);
 
     Ok(())
 }
 
+/// アクセス／リフレッシュトークン保存するクッキーの仕様を確認する。
+///
+/// # 引数
+///
+/// * `cookie` - アクセス／リフレッシュトークンを保存するクッキー
+/// * `expected_same_site` - 予期する`SameSite`の値
+/// * `expected_secure` - `Secure`を設定するかを示すフラグ
+/// * `expected_http_only` - `HttpOnly`を設定するかを示すフラグ
+/// * `requesting_at` - サインインをリクエストした日時
+/// * `received_at` - サインインのレスポンスを受け取った日時
+/// * `expiration` - アクセス／リフレッシュトークンの有効期限（秒）
+///
+/// `requesting_at`は、サインインをリクエストする直前の日時とする。
+/// `received_at`は、サインインのレスポンスを受け取った日時とする。
+/// よって、クッキーの有効期限は、`requesting_at` + `expiration`以上で、`received_at` + `expiration`以下となる。
+fn inspect_token_cookie_spec(
+    cookie: &Cookie<'_>,
+    expected_same_site: SameSite,
+    expected_secure: bool,
+    expected_http_only: bool,
+    requesting_at: OffsetDateTime,
+    received_at: OffsetDateTime,
+    expiration: u64,
+) {
+    assert_eq!(
+        expected_same_site.to_string(),
+        cookie.same_site().unwrap().to_string()
+    );
+    assert_eq!(expected_secure, cookie.secure().unwrap());
+    assert_eq!(expected_http_only, cookie.http_only().unwrap());
+    let duration = Duration::seconds(expiration as i64);
+    let range_begin = requesting_at + duration;
+    let range_end = received_at + duration;
+    let cookie_expiration = cookie.expires_datetime().unwrap();
+    assert!(
+        range_begin <= cookie_expiration,
+        "`{} <= {}` is not satisfied",
+        range_begin,
+        cookie_expiration
+    );
+    assert!(
+        range_end >= cookie_expiration,
+        "`{} >= {}` is not satisfied",
+        range_end,
+        cookie_expiration
+    );
+}
+
+/// # サインイン統合テストリスト
+///
 /// * パスワードが間違っているときにユーザーがサインインできず、ユーザーがサインインを試行した日時
 ///   とサインイン試行回数の1がデータベースに記録されていることを確認
 /// * 指定したEメールアドレスを持つユーザーが登録されていないときに、NOT FOUNDが返されることを確認

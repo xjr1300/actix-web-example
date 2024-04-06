@@ -35,12 +35,19 @@ async fn main() -> anyhow::Result<()> {
     );
     init_log_subscriber(subscriber);
 
+    // HTTPサーバーがリッスンするポート
+    let address = format!("localhost:{}", app_settings.http_server.port);
+
     // データベース接続プールを取得
     let pool = app_settings.database.connection_pool();
-    let context = RequestContext::new(app_settings.password, app_settings.authorization, pool);
+    let context = RequestContext::new(
+        app_settings.http_server,
+        app_settings.password,
+        app_settings.authorization,
+        pool,
+    );
 
     // Httpサーバーがリッスンするポートをバインド
-    let address = format!("localhost:{}", app_settings.http_server.port);
     let listener = TcpListener::bind(&address).map_err(|e| anyhow!(e))?;
     tracing::info!("Http server is listening on `{}`", &address);
 

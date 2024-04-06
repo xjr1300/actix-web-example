@@ -142,6 +142,7 @@ pub async fn spawn_test_app() -> anyhow::Result<TestApp> {
     let pool = configure_database(&settings.database).await?;
     // テスト用のデータベースに接続するリポジトリのコンテナを構築
     let context = RequestContext::new(
+        settings.http_server.clone(),
         settings.password.clone(),
         settings.authorization.clone(),
         pool.clone(),

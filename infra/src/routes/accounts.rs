@@ -1,4 +1,6 @@
+use actix_web::cookie::Cookie;
 use actix_web::{web, HttpResponse};
+use configurations::settings::HttpServerSettings;
 use secrecy::{ExposeSecret, SecretString};
 use time::OffsetDateTime;
 use uuid::Uuid;
@@ -6,7 +8,7 @@ use uuid::Uuid;
 use domain::models::primitives::*;
 use domain::models::user::{User, UserPermissionCode};
 use use_cases::accounts::{
-    JwtTokenPair, SignInUseCaseInput, SignUpUseCaseInputBuilder, SignUpUseCaseOutput,
+    SignInUseCaseInput, SignInUseCaseOutput, SignUpUseCaseInputBuilder, SignUpUseCaseOutput,
 };
 use use_cases::UseCaseError;
 
@@ -150,6 +152,7 @@ pub async fn sign_in(
     context: web::Data<RequestContext>,
     request_body: web::Json<SignInReqBody>,
 ) -> ProcessRequestResult<HttpResponse> {
+    let http_server_settings = &context.http_server_settings;
     let password_settings = &context.password_settings;
     let authorization_settings = &context.authorization_settings;
     let repository = context.user_repository();
@@ -157,14 +160,45 @@ pub async fn sign_in(
     let password = RawPassword::new(request_body.0.password).map_err(ProcessRequestError::from)?;
     let input = SignInUseCaseInput { email, password };
 
-    let tokens =
+    let output =
         use_cases::accounts::sign_in(password_settings, authorization_settings, repository, input)
             .await
             .map_err(ProcessRequestError::from)?;
 
-    // TODO: レスポンスヘッダに、クッキーにアクセス及びリクエストトークンを設定する`Set-Cookie`を追加する。
+    // レスポンスヘッダに、クッキーにアクセス及びリクエストトークンを設定する`Set-Cookie`を追加する。
+    let access_cookie = generate_token_cookie(
+        "access",
+        &output.access,
+        output.access_expiration,
+        http_server_settings,
+    );
+    let refresh_cookie = generate_token_cookie(
+        "refresh",
+        &output.access,
+        output.refresh_expiration,
+        http_server_settings,
+    );
+    // レスポンスボディを構築
+    let body = SignInResBody::from(&output);
 
-    Ok(HttpResponse::Ok().json(JwtTokenPairResBody::from(tokens)))
+    Ok(HttpResponse::Ok()
+        .cookie(access_cookie)
+        .cookie(refresh_cookie)
+        .json(body))
+}
+
+fn generate_token_cookie<'a>(
+    name: &'a str,
+    token: &'a SecretString,
+    expiration: OffsetDateTime,
+    http_settings: &HttpServerSettings,
+) -> Cookie<'a> {
+    Cookie::build(name, token.expose_secret())
+        .same_site(http_settings.same_site)
+        .secure(http_settings.secure)
+        .http_only(true)
+        .expires(expiration)
+        .finish()
 }
 
 /// サインインリクエスト・ボディ
@@ -178,15 +212,15 @@ pub struct SignInReqBody {
 
 /// JWTトークンペア・レスポンス・ボディ
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-pub struct JwtTokenPairResBody {
+pub struct SignInResBody {
     /// アクセストークン
     pub access: String,
     /// リフレッシュトークン
     pub refresh: String,
 }
 
-impl From<JwtTokenPair> for JwtTokenPairResBody {
-    fn from(value: JwtTokenPair) -> Self {
+impl From<&SignInUseCaseOutput> for SignInResBody {
+    fn from(value: &SignInUseCaseOutput) -> Self {
         Self {
             access: value.access.expose_secret().to_string(),
             refresh: value.refresh.expose_secret().to_string(),
