@@ -14,7 +14,7 @@ use infra::RequestContext;
 /// # 引数
 ///
 /// * `listener` - HTTPサーバーがリッスンするポートをバインドしたリスナー
-/// * `context` - リクエスト・コンテキスト
+/// * `context` - リクエストコンテキスト
 ///
 /// # 戻り値
 ///

@@ -1,7 +1,11 @@
+use std::collections::HashMap;
 use std::marker::PhantomData;
+use std::str::FromStr as _;
 
+use anyhow::anyhow;
 use once_cell::sync::Lazy;
 use regex::Regex;
+use secrecy::{ExposeSecret as _, SecretString};
 use uuid::Uuid;
 
 use macros::{OptionalStringPrimitive, PrimitiveDisplay, StringPrimitive};
@@ -84,7 +88,7 @@ impl<T> EntityId<T> {
 
 /// コード
 ///
-/// ジェネリック引数`T1`はコード・テーブルの型を指定する。
+/// ジェネリック引数`T1`はコードテーブルの型を指定する。
 /// ジェネリック引数`T2`はコードの型を指定する。
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct NumericCode<T1, T2>
@@ -127,24 +131,132 @@ impl<T1, T2: Clone + Copy> NumericCode<T1, T2> {
     }
 }
 
-/// Eメール・アドレスの長さ
+/// Eメールアドレスの長さ
 ///
-/// Eメール・アドレスの文字数の最小値は規定されていないため、"a@a.jp"のようなアドレスを想定して6文字とした。
-/// Eメール・アドレスの文字数の最大値は、次を参照して設定した。
+/// Eメールアドレスの文字数の最小値は規定されていないため、"a@a.jp"のようなアドレスを想定して6文字とした。
+/// Eメールアドレスの文字数の最大値は、次を参照して設定した。
 /// <https://stackoverflow.com/questions/386294/what-is-the-maximum-length-of-a-valid-email-address>
 const EMAIL_ADDRESS_MIN_LEN: u64 = 6;
 const EMAIL_ADDRESS_MAX_LEN: u64 = 254;
 
-/// Eメール・アドレス
+/// Eメールアドレス
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Validate, PrimitiveDisplay, StringPrimitive)]
 #[primitive(
-    name = "Eメール・アドレス",
-    message = "Eメール・アドレスの形式が間違っています。"
+    name = "Eメールアドレス",
+    message = "Eメールアドレスの形式が間違っています。"
 )]
 pub struct EmailAddress {
     #[validate(email)]
     #[validate(length(min = EMAIL_ADDRESS_MIN_LEN, max = EMAIL_ADDRESS_MAX_LEN))]
     pub value: String,
+}
+
+/// 未加工なパスワード
+///
+/// 未加工なパスワードは、次を満たさなければならない。
+///
+/// * 8文字以上
+/// * 大文字、小文字のアルファベットをそれぞれ1つ以上含む
+/// * 数字を1つ以上含む
+/// * 次の記号を1つ以上含む
+///   * ~`!@#$%^&*()_-+={[}]|\:;"'<,>.?/
+/// * 同じ文字が4つ以上ない
+#[derive(Debug, Clone, Validate)]
+pub struct RawPassword {
+    pub value: SecretString,
+}
+
+impl RawPassword {
+    pub fn new(value: SecretString) -> DomainResult<Self> {
+        let value = value.expose_secret().trim();
+        validate_plain_password(value)?;
+        let value =
+            SecretString::from_str(value).map_err(|e| DomainError::Unexpected(anyhow!(e)))?;
+
+        Ok(Self { value })
+    }
+}
+
+/// パスワードの最小文字数
+const PASSWORD_MIN_LENGTH: usize = 8;
+/// パスワードに含めるシンボルの候補
+const PASSWORD_SYMBOLS_CANDIDATES: &str = r#"~`!@#$%^&*()_-+={[}]|\:;"'<,>.?/"#;
+/// パスワードに同じ文字が存在することを許容する最大数
+/// 指定された数だけ同じ文字をパスワードに含めることを許可
+const PASSWORD_MAX_NUMBER_OF_CHAR_APPEARANCES: u64 = 3;
+
+/// パスワードがドメインルールを満たしているか確認する。
+fn validate_plain_password(s: &str) -> DomainResult<()> {
+    // パスワードの文字数を確認
+    if s.len() < PASSWORD_MIN_LENGTH {
+        return Err(DomainError::DomainRule(
+            format!("パスワードは少なくとも{PASSWORD_MIN_LENGTH}文字以上指定してください。").into(),
+        ));
+    }
+    // 大文字のアルファベットが含まれるか確認
+    if !s.chars().any(|ch| ch.is_ascii_uppercase()) {
+        return Err(DomainError::DomainRule(
+            "パスワードは大文字のアルファベットを1文字以上含めなくてはなりません。".into(),
+        ));
+    }
+    // 小文字のアルファベットが含まれるか確認
+    if !s.chars().any(|ch| ch.is_ascii_lowercase()) {
+        return Err(DomainError::DomainRule(
+            "パスワードは小文字のアルファベットを1文字以上含めなくてはなりません。".into(),
+        ));
+    }
+    // 数字が含まれるか確認
+    if !s.chars().any(|ch| ch.is_ascii_digit()) {
+        return Err(DomainError::DomainRule(
+            "パスワードは数字を1文字以上含めなくてはなりません。".into(),
+        ));
+    }
+    // シンボルが含まれるか確認
+    if !s.chars().any(|ch| PASSWORD_SYMBOLS_CANDIDATES.contains(ch)) {
+        return Err(DomainError::DomainRule(
+            format!(
+                "パスワードは記号({})を1文字以上含めなくてはなりません。",
+                PASSWORD_SYMBOLS_CANDIDATES
+            )
+            .into(),
+        ));
+    }
+    // 文字の出現回数を確認
+    let mut number_of_chars: HashMap<char, u64> = HashMap::new();
+    s.chars().for_each(|ch| {
+        *number_of_chars.entry(ch).or_insert(0) += 1;
+    });
+    let max_number_of_appearances = number_of_chars.values().max().unwrap();
+    if PASSWORD_MAX_NUMBER_OF_CHAR_APPEARANCES < *max_number_of_appearances {
+        return Err(DomainError::DomainRule(
+            format!("パスワードは同じ文字を{PASSWORD_MAX_NUMBER_OF_CHAR_APPEARANCES}個より多く含めることはできません。").into()
+        ));
+    }
+
+    Ok(())
+}
+
+/// PHC文字列正規表現(cspell: disable-next-line)
+const PHC_STRING_EXPRESSION: &str = r#"^\$argon2id\$v=(?:16|19)\$m=\d{1,10},t=\d{1,10},p=\d{1,3}(?:,keyid=[A-Za-z0-9+/]{0,11}(?:,data=[A-Za-z0-9+/]{0,43})?)?\$[A-Za-z0-9+/]{11,64}\$[A-Za-z0-9+/]{16,86}$"#;
+
+/// PHCパスワード文字列
+#[derive(Debug, Clone)]
+pub struct PhcPassword {
+    pub value: SecretString,
+}
+
+impl PhcPassword {
+    pub fn new(value: SecretString) -> DomainResult<Self> {
+        let raw_phc = value.expose_secret();
+        let re = Regex::new(PHC_STRING_EXPRESSION).unwrap();
+        if !re.is_match(raw_phc) {
+            return Err(DomainError::Validation(
+                "PHC文字列に設定する文字列がPHC文字列の形式ではありません。".into(),
+            ));
+        }
+
+        Ok(Self { value })
+    }
 }
 
 /// ユーザーの氏名の性
@@ -233,7 +345,7 @@ mod tests {
         }
     }
 
-    /// Eメール・アドレスとして妥当な文字列から、Eメール・アドレスを構築できることを確認
+    /// Eメールアドレスとして妥当な文字列から、Eメール・アドレスを構築できることを確認
     #[test]
     fn construct_email_address_from_valid_strings() {
         let candidates = ["a@a.jp", "foo@example.com"];
@@ -243,7 +355,7 @@ mod tests {
         }
     }
 
-    /// Eメール・アドレスとして無効な文字列から、Eメールアドレスを構築できないことを確認
+    /// Eメールアドレスとして無効な文字列から、Eメールアドレスを構築できないことを確認
     #[test]
     fn can_not_construct_email_address_from_invalid_strings() {
         let domain = "@example.com";

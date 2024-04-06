@@ -1,23 +1,25 @@
-use actix_web::http::StatusCode;
+use actix_web::cookie::Cookie;
 use actix_web::{web, HttpResponse};
-use secrecy::SecretString;
+use configurations::settings::HttpServerSettings;
+use secrecy::{ExposeSecret, SecretString};
 use time::OffsetDateTime;
 use uuid::Uuid;
 
-use domain::models::passwords::{generate_phc_string, RawPassword};
 use domain::models::primitives::*;
-use domain::models::user::{User, UserId, UserPermissionCode};
-use domain::repositories::user::{SignUpInputBuilder, SingUpOutput};
-use domain::DomainError;
+use domain::models::user::{User, UserPermissionCode};
+use use_cases::accounts::{
+    SignInUseCaseInput, SignInUseCaseOutput, SignUpUseCaseInputBuilder, SignUpUseCaseOutput,
+};
 use use_cases::UseCaseError;
 
-use crate::routes::{ErrorResponseBody, ProcessRequestError, ProcessRequestResult};
+use crate::routes::{ProcessRequestError, ProcessRequestResult};
 use crate::RequestContext;
 
 /// アカウントスコープを返却する。
 pub fn accounts_scope() -> actix_web::Scope {
     web::scope("/accounts")
         .service(web::resource("/sign-up").route(web::post().to(sign_up)))
+        .service(web::resource("/sign-in").route(web::post().to(sign_in)))
         .service(web::resource("/users").route(web::get().to(list_users)))
 }
 
@@ -28,12 +30,11 @@ pub async fn sign_up(
 ) -> ProcessRequestResult<HttpResponse> {
     let repository = context.user_repository();
     let input = request_body.0;
-    let pepper = &context.pepper;
+    let password_settings = &context.password_settings;
 
     let email = EmailAddress::new(input.email).map_err(ProcessRequestError::from)?;
     let user_permission_code = UserPermissionCode::new(input.user_permission_code);
     let password = RawPassword::new(input.password).map_err(ProcessRequestError::from)?;
-    let password = generate_phc_string(&password, pepper).map_err(ProcessRequestError::from)?;
     let family_name = FamilyName::new(input.family_name).map_err(ProcessRequestError::from)?;
     let given_name = GivenName::new(input.given_name).map_err(ProcessRequestError::from)?;
     let postal_code = PostalCode::new(input.postal_code).map_err(ProcessRequestError::from)?;
@@ -44,8 +45,7 @@ pub async fn sign_up(
         .map_err(ProcessRequestError::from)?;
     let remarks = OptionalRemarks::try_from(input.remarks).map_err(ProcessRequestError::from)?;
 
-    let input = SignUpInputBuilder::new()
-        .id(UserId::default())
+    let input = SignUpUseCaseInputBuilder::new()
         .email(email)
         .password(password)
         .active(true)
@@ -60,16 +60,13 @@ pub async fn sign_up(
         .build()
         .map_err(|e| UseCaseError::domain_rule(e.to_string()))?;
 
-    use_cases::accounts::sign_up(input, &context.pepper, repository)
+    use_cases::accounts::sign_up(password_settings, repository, input)
         .await
         .map(|user| HttpResponse::Ok().json(SignUpResBody::from(user)))
         .map_err(|e| e.into())
 }
 
-/// サインアップ・リクエスト・ボディ
-///
-/// ```json
-/// {"email": "foo@example.com", "password": "p@ssw0rd", "userPermissionCode": 1, "familyName": "Yamada", "givenName": "Taro", "postalCode": "899-7103", "address": "鹿児島県志布志市志布志町志布志2-1-1", "fixedPhoneNumber": "099-472-1111", "mobilePhoneNumber": "090-1234-5678", "remarks": "日本に実際に存在するややこしい地名です。"}
+/// サインアップリクエスト・ボディ
 /// ```
 #[derive(Debug, Clone, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -96,14 +93,32 @@ pub struct SignUpReqBody {
     pub remarks: Option<String>,
 }
 
-/// サインアップ・レスポンス・ボディ
+/// サインアップレスポンス・ボディ
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SignUpResBody {
     /// ユーザーID
     pub id: Uuid,
-    /// Eメール・アドレス
+    /// Eメールアドレス
     pub email: String,
+    /// アクティブフラグ
+    pub active: bool,
+    /// ユーザー権限コード
+    pub user_permission_code: i16,
+    /// 苗字
+    pub family_name: String,
+    /// 名前
+    pub given_name: String,
+    /// 郵便番号
+    pub postal_code: String,
+    /// 住所
+    pub address: String,
+    /// 固定電話番号
+    pub fixed_phone_number: Option<String>,
+    /// 携帯電話番号
+    pub mobile_phone_number: Option<String>,
+    /// 備考
+    pub remarks: Option<String>,
     /// 作成日時
     #[serde(with = "time::serde::rfc3339")]
     pub created_at: OffsetDateTime,
@@ -112,18 +127,108 @@ pub struct SignUpResBody {
     pub updated_at: OffsetDateTime,
 }
 
-impl From<SingUpOutput> for SignUpResBody {
-    fn from(value: SingUpOutput) -> Self {
+impl From<SignUpUseCaseOutput> for SignUpResBody {
+    fn from(value: SignUpUseCaseOutput) -> Self {
         Self {
             id: value.id.value,
             email: value.email.value,
+            active: value.active,
+            user_permission_code: value.user_permission_code.value,
+            family_name: value.family_name.value,
+            given_name: value.given_name.value,
+            postal_code: value.postal_code.value,
+            address: value.address.value,
+            fixed_phone_number: value.fixed_phone_number.owned_value(),
+            mobile_phone_number: value.mobile_phone_number.owned_value(),
+            remarks: value.remarks.owned_value(),
             created_at: value.created_at,
             updated_at: value.updated_at,
         }
     }
 }
 
-/// ユーザー・リスト
+/// サインイン
+pub async fn sign_in(
+    context: web::Data<RequestContext>,
+    request_body: web::Json<SignInReqBody>,
+) -> ProcessRequestResult<HttpResponse> {
+    let http_server_settings = &context.http_server_settings;
+    let password_settings = &context.password_settings;
+    let authorization_settings = &context.authorization_settings;
+    let repository = context.user_repository();
+    let email = EmailAddress::new(request_body.0.email).map_err(ProcessRequestError::from)?;
+    let password = RawPassword::new(request_body.0.password).map_err(ProcessRequestError::from)?;
+    let input = SignInUseCaseInput { email, password };
+
+    let output =
+        use_cases::accounts::sign_in(password_settings, authorization_settings, repository, input)
+            .await
+            .map_err(ProcessRequestError::from)?;
+
+    // レスポンスヘッダに、クッキーにアクセス及びリクエストトークンを設定する`Set-Cookie`を追加する。
+    let access_cookie = generate_token_cookie(
+        "access",
+        &output.access,
+        output.access_expiration,
+        http_server_settings,
+    );
+    let refresh_cookie = generate_token_cookie(
+        "refresh",
+        &output.access,
+        output.refresh_expiration,
+        http_server_settings,
+    );
+    // レスポンスボディを構築
+    let body = SignInResBody::from(&output);
+
+    Ok(HttpResponse::Ok()
+        .cookie(access_cookie)
+        .cookie(refresh_cookie)
+        .json(body))
+}
+
+fn generate_token_cookie<'a>(
+    name: &'a str,
+    token: &'a SecretString,
+    expiration: OffsetDateTime,
+    http_settings: &HttpServerSettings,
+) -> Cookie<'a> {
+    Cookie::build(name, token.expose_secret())
+        .same_site(http_settings.same_site)
+        .secure(http_settings.secure)
+        .http_only(true)
+        .expires(expiration)
+        .finish()
+}
+
+/// サインインリクエスト・ボディ
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct SignInReqBody {
+    /// Eメールアドレス
+    pub email: String,
+    /// パス話ワード
+    pub password: SecretString,
+}
+
+/// JWTトークンペア・レスポンス・ボディ
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct SignInResBody {
+    /// アクセストークン
+    pub access: String,
+    /// リフレッシュトークン
+    pub refresh: String,
+}
+
+impl From<&SignInUseCaseOutput> for SignInResBody {
+    fn from(value: &SignInUseCaseOutput) -> Self {
+        Self {
+            access: value.access.expose_secret().to_string(),
+            refresh: value.refresh.expose_secret().to_string(),
+        }
+    }
+}
+
+/// ユーザーリスト
 async fn list_users(context: web::Data<RequestContext>) -> ProcessRequestResult<HttpResponse> {
     let repo = context.user_repository();
     let users = use_cases::accounts::list_users(repo)
@@ -179,40 +284,6 @@ impl From<User> for UserResBody {
             last_logged_in_at: value.last_logged_in_at,
             created_at: value.created_at,
             updated_at: value.updated_at,
-        }
-    }
-}
-
-impl From<DomainError> for ProcessRequestError {
-    fn from(value: DomainError) -> Self {
-        match value {
-            DomainError::Unexpected(e) => UseCaseError::unexpected(e.to_string()).into(),
-            DomainError::Validation(m) => UseCaseError::validation(m).into(),
-            DomainError::DomainRule(m) => UseCaseError::domain_rule(m).into(),
-            DomainError::Repository(e) => UseCaseError::repository(e.to_string()).into(),
-        }
-    }
-}
-
-impl From<UseCaseError> for ProcessRequestError {
-    fn from(value: UseCaseError) -> Self {
-        let body = ErrorResponseBody {
-            error_code: Some(value.error_code as u32),
-            message: value.message,
-        };
-        match value.kind {
-            use_cases::UseCaseErrorKind::Unexpected | use_cases::UseCaseErrorKind::Repository => {
-                Self {
-                    status_code: StatusCode::INTERNAL_SERVER_ERROR,
-                    body,
-                }
-            }
-            use_cases::UseCaseErrorKind::Validation | use_cases::UseCaseErrorKind::DomainRule => {
-                Self {
-                    status_code: StatusCode::BAD_REQUEST,
-                    body,
-                }
-            }
         }
     }
 }

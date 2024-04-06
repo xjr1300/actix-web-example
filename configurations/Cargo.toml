@@ -1,24 +1,16 @@
 [package]
-name = "server"
+name = "configurations"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
 actix-web = "4.5.1"
 anyhow = "1.0.81"
-configurations = { path = "../configurations" }
-domain = { path = "../domain" }
-dotenvx = "0.0.2"
-infra = { path = "../infra" }
+config = "0.14.0"
+enum-display = "0.1.4"
 log = { version = "0.4.21", features = ["serde"] }
 secrecy = { version = "0.8.0", features = ["alloc", "serde"] }
 serde = { version = "1.0.197", features = ["derive"] }
-tokio = { version = "1.36.0", features = ["rt-multi-thread", "macros"] }
-tracing = { version = "0.1.40", features = ["log"] }
-tracing-actix-web = "0.7.10"
-tracing-bunyan-formatter = "0.3"
-tracing-log = "0.2.0"
-tracing-subscriber = { version = "0.3", features = ["registry", "env-filter"] }
 use_cases = { path = "../use_cases" }
 
 [dependencies.sqlx]
@@ -32,3 +24,6 @@ features = [
     "time",
     "migrate",
 ]
+
+[dev-dependencies]
+dotenvx = "0.0.2"

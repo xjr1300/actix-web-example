@@ -3,7 +3,7 @@ use validator::Validate;
 use domain::{DomainError, DomainResult};
 use macros::{IntegerPrimitive, OptionalStringPrimitive, PrimitiveDisplay, StringPrimitive};
 
-/// `Display`トレイトを実装したドメイン・プリミティブを実装できることを確認
+/// `Display`トレイトを実装したドメインプリミティブを実装できることを確認
 #[test]
 fn primitive_display_works() {
     #[derive(PrimitiveDisplay)]

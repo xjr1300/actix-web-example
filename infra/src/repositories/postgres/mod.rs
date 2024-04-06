@@ -35,7 +35,7 @@ impl<T> PgRepository<T> {
         }
     }
 
-    /// デフォルトのトランザクション分離レベルとアクセス・モードで、トランザクションを開始する。
+    /// デフォルトのトランザクション分離レベルとアクセスモードで、トランザクションを開始する。
     ///
     /// # 戻り値
     ///
@@ -47,7 +47,7 @@ impl<T> PgRepository<T> {
             .map_err(|e| DomainError::Repository(e.into()))
     }
 
-    /// 指定したトランザクション分離モデルとデフォルトのアクセス・モードで、トランザクションを開始する。
+    /// 指定したトランザクション分離モデルとデフォルトのアクセスモードで、トランザクションを開始する。
     ///
     /// # 引数
     ///
@@ -76,12 +76,12 @@ impl<T> PgRepository<T> {
         Ok(tx)
     }
 
-    /// 指定したザクション分離レベルとアクセス・モードで、トランザクションを開始する。
+    /// 指定したザクション分離レベルとアクセスモードで、トランザクションを開始する。
     ///
     /// # 引数
     ///
     /// * `isolation_level` - トランザクション分離レベル
-    /// * `access_mode` - トランザクションのアクセス・モード
+    /// * `access_mode` - トランザクションのアクセスモード
     ///
     /// # 戻り値
     ///
@@ -115,7 +115,7 @@ impl<T> PgRepository<T> {
     /// # 引数
     ///
     /// * `isolation_level` - トランザクション分離レベル
-    /// * `access_mode` - トランザクションのアクセス・モード
+    /// * `access_mode` - トランザクションのアクセスモード
     /// * `deferrable` - トランザクションがコミットされるまでチェックを延期(defer)
     ///
     /// # 戻り値
@@ -188,15 +188,15 @@ async fn rollback_transaction(tx: PgTransaction<'_>) -> DomainResult<()> {
 /// トランザクション分離レベル
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum IsolationLevel {
-    /// リード・アンコミッティッド
+    /// リードアンコミッティッド
     ///
-    /// PostgreSQLは、リード・アンコミッティッドをリード・コミットとして扱う。
+    /// PostgreSQLは、リードアンコミッティッドをリード・コミットとして扱う。
     ReadUncommitted,
 
-    /// リード・コミット
+    /// リードコミット
     ReadCommit,
 
-    /// リピータブル・リード
+    /// リピータブルリード
     RepeatableRead,
 
     /// シリアライザブル
@@ -214,7 +214,7 @@ impl std::fmt::Display for IsolationLevel {
     }
 }
 
-/// トランザクションのアクセス・モード
+/// トランザクションのアクセスモード
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum AccessMode {
     /// 読み書き

@@ -10,12 +10,12 @@ async fn transaction_works() -> anyhow::Result<()> {
     let app = spawn_test_app().await?;
     let repo = PgRepository::<i32>::new(app.pool.clone());
 
-    // リード・コミット
+    // リードコミット
     {
         let _ = repo.begin().await?;
     }
 
-    // リピータブル・リード
+    // リピータブルリード
     {
         let _ = repo.begin_with_level(IsolationLevel::ReadCommit).await?;
     }

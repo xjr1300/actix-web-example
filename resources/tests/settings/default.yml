@@ -1,5 +1,16 @@
 http_server:
   port: 80
+  same_site: strict
+  secure: true
+password:
+  hash_memory: 12288
+  hash_iterations: 3
+  hash_parallelism: 1
+authorization:
+  sign_in_attempting_seconds: 300
+  number_of_sign_in_failures: 10
+  access_token_seconds: 3600 # 1時間
+  refresh_token_seconds: 259200 # 3日
 database:
   connection_timeout_seconds: 3
 logging:

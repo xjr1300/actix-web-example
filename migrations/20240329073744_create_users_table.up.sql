@@ -27,6 +27,8 @@ CREATE TABLE IF NOT EXISTS users (
     mobile_phone_number VARCHAR(13),
     remarks VARCHAR(400),
     last_logged_in_at TIMESTAMP WITH TIME ZONE,
+    sign_in_attempted_at TIMESTAMP WITH TIME ZONE,
+    number_of_sign_in_failures SMALLINT NOT NULL DEFAULT 0,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL,
     CONSTRAINT pk_users PRIMARY KEY (id),

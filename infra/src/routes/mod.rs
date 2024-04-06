@@ -9,24 +9,27 @@ use actix_web::middleware::ErrorHandlerResponse;
 use actix_web::{HttpResponse, Responder, ResponseError};
 use mime::Mime;
 
+use domain::DomainError;
+use use_cases::{UseCaseError, UseCaseErrorKind};
+
 /// リクエスト処理結果
 pub type ProcessRequestResult<T> = Result<T, ProcessRequestError>;
 
 /// リクエスト処理エラー
 ///
 /// * ドメイン層で発生したエラーは、`DomainError` -> `ProcessRequestError`に変換する。
-/// * ユース・ケース層で発生したエラーは、次のように変換する。
-///   * ユース・ケースでエラーが発生した場合、`UseCaseError` -> `ProcessRequestError`
-///   * ユース・ケースがドメイン層のエラーを取得した場合、`DomainError` -> `UseCaseError` -> `ProcessRequestError`
+/// * ユースケース層で発生したエラーは、次のように変換する。
+///   * ユースケースでエラーが発生した場合、`UseCaseError` -> `ProcessRequestError`
+///   * ユースケースがドメイン層のエラーを取得した場合、`DomainError` -> `UseCaseError` -> `ProcessRequestError`
 #[derive(Debug, Clone, thiserror::Error)]
 pub struct ProcessRequestError {
-    /// HTTPステータス・コード
+    /// HTTPステータスコード
     pub status_code: StatusCode,
-    /// レスポンス・ボディ
+    /// レスポンスボディ
     pub body: ErrorResponseBody,
 }
 
-/// リクエスト処理エラーを、`actix-web`のエラー・レスポンスとして扱えるように`ResponseError`を実装する。
+/// リクエスト処理エラーを、`actix-web`のエラーレスポンスとして扱えるように`ResponseError`を実装する。
 impl ResponseError for ProcessRequestError {
     fn status_code(&self) -> StatusCode {
         self.status_code
@@ -59,18 +62,18 @@ impl std::fmt::Display for ProcessRequestError {
     }
 }
 
-/// エラー・レスポンス・ボディ
+/// エラーレスポンス・ボディ
 ///
-/// アプリケーションから返されるエラー・レスポンスのボディを表現する。
+/// アプリケーションから返されるエラーレスポンスのボディを表現する。
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ErrorResponseBody {
-    /// アプリ独自のエラー・コード
+    /// アプリ独自のエラーコード
     ///
     /// `actix-web`がエラー処理した場合は`None`である。
     pub error_code: Option<u32>,
 
-    /// エラー・メッセージ
+    /// エラーメッセージ
     pub message: Cow<'static, str>,
 }
 
@@ -103,6 +106,51 @@ impl ErrorResponseBody {
     }
 }
 
+impl From<DomainError> for ProcessRequestError {
+    fn from(value: DomainError) -> Self {
+        let status_code = match value {
+            DomainError::Unexpected(_) | DomainError::Repository(_) => {
+                StatusCode::INTERNAL_SERVER_ERROR
+            }
+            _ => StatusCode::BAD_REQUEST,
+        };
+        Self {
+            status_code,
+            body: ErrorResponseBody {
+                error_code: None,
+                message: value.to_string().into(),
+            },
+        }
+    }
+}
+
+impl From<UseCaseError> for ProcessRequestError {
+    fn from(value: UseCaseError) -> Self {
+        let body = ErrorResponseBody {
+            error_code: Some(value.error_code),
+            message: value.message,
+        };
+        match value.kind {
+            UseCaseErrorKind::Unexpected | UseCaseErrorKind::Repository => Self {
+                status_code: StatusCode::INTERNAL_SERVER_ERROR,
+                body,
+            },
+            UseCaseErrorKind::Validation | UseCaseErrorKind::DomainRule => Self {
+                status_code: StatusCode::BAD_REQUEST,
+                body,
+            },
+            UseCaseErrorKind::NotFound => Self {
+                status_code: StatusCode::NOT_FOUND,
+                body,
+            },
+            UseCaseErrorKind::Unauthorized => Self {
+                status_code: StatusCode::UNAUTHORIZED,
+                body,
+            },
+        }
+    }
+}
+
 /// HTTPヘッダからContent-Typeを取得する。
 ///
 /// # 引数
@@ -122,17 +170,16 @@ fn retrieve_content_type(headers: &HeaderMap) -> Option<Mime> {
     }
 }
 
-/// カスタム・デフォルト・エラー・ハンドラ
+/// カスタムデフォルト・エラー・ハンドラ
 pub fn default_error_handler<B>(
     res: ServiceResponse<B>,
 ) -> actix_web::Result<ErrorHandlerResponse<B>> {
-    // コンテンツ・タイプがapplication/jsonの場合はそのまま返す
+    // コンテンツタイプがapplication/jsonの場合はそのまま返す
     let content_type = retrieve_content_type(res.headers());
     if content_type.is_some() && content_type.unwrap() == mime::APPLICATION_JSON {
         return Ok(ErrorHandlerResponse::Response(res.map_into_left_body()));
     }
-
-    // レスポンス・ボディを生成
+    // レスポンスボディを生成
     let message = res
         .status()
         .canonical_reason()
@@ -154,7 +201,7 @@ pub fn default_error_handler<B>(
     Ok(ErrorHandlerResponse::Response(res))
 }
 
-/// ヘルス・チェック
+/// ヘルスチェック
 #[tracing::instrument(name = "health check")]
 pub async fn health_check() -> impl Responder {
     HttpResponse::Ok()

@@ -4,25 +4,29 @@ use std::path::Path;
 use anyhow::Context as _;
 use once_cell::sync::Lazy;
 use reqwest::header::{HeaderValue, CONTENT_TYPE};
-use secrecy::SecretString;
+use secrecy::{ExposeSecret, SecretString};
 use sqlx::{Connection as _, Executor as _, PgConnection, PgPool};
 use uuid::Uuid;
 
-use domain::models::passwords::{generate_phc_string, PhcPassword, RawPassword};
+use configurations::settings::{
+    retrieve_app_settings, AppEnvironment, AppSettings, DatabaseSettings, ENV_APP_ENVIRONMENT,
+    SETTINGS_DIR_NAME,
+};
 use domain::models::primitives::*;
 use domain::models::user::{UserId, UserPermission, UserPermissionCode, UserPermissionName};
 use domain::repositories::user::{SignUpInput, SignUpInputBuilder};
+use domain::repositories::user::{SignUpOutput, UserRepository};
+use infra::repositories::postgres::user::PgUserRepository;
 use infra::routes::accounts::SignUpReqBody;
 use infra::RequestContext;
-use server::settings::{
-    retrieve_app_settings, AppEnvironment, DatabaseSettings, ENV_APP_ENVIRONMENT, SETTINGS_DIR_NAME,
-};
 use server::startup::build_http_server;
 use server::telemetry::{generate_log_subscriber, init_log_subscriber};
+use use_cases::passwords::generate_phc_string;
+use use_cases::settings::PasswordSettings;
 
 /// 分解したレスポンス
 pub struct ResponseParts {
-    /// ステータス・コード
+    /// ステータスコード
     pub status_code: reqwest::StatusCode,
     /// ヘッダ
     pub headers: reqwest::header::HeaderMap,
@@ -30,7 +34,7 @@ pub struct ResponseParts {
     pub body: String,
 }
 
-/// レスポンスをステータス・コード、ヘッダ、ボディに分割する。
+/// レスポンスをステータスコード、ヘッダ、ボディに分割する。
 pub async fn split_response(response: reqwest::Response) -> anyhow::Result<ResponseParts> {
     Ok(ResponseParts {
         status_code: response.status(),
@@ -39,7 +43,7 @@ pub async fn split_response(response: reqwest::Response) -> anyhow::Result<Respo
     })
 }
 
-/// ログ・サブスクライバ
+/// ログサブスクライバ
 static TRACING: Lazy<()> = Lazy::new(|| {
     let default_level = log::Level::Info;
     let subscriber_name = String::from("test");
@@ -59,8 +63,8 @@ pub const CONTENT_TYPE_APPLICATION_JSON: &str = "application/json";
 pub struct TestApp {
     /// アプリのルートURI
     pub root_uri: String,
-    /// パスワードに振りかけるペッパー
-    pub pepper: SecretString,
+    /// アプリの設定
+    pub settings: AppSettings,
     /// データベース接続プール
     pub pool: PgPool,
 }
@@ -68,7 +72,6 @@ pub struct TestApp {
 impl TestApp {
     pub async fn sign_up(&self, body: String) -> anyhow::Result<reqwest::Response> {
         let client = reqwest::Client::new();
-
         client
             .post(&format!("{}/accounts/sign-up", self.root_uri))
             .body(body)
@@ -78,14 +81,39 @@ impl TestApp {
             .map_err(|e| e.into())
     }
 
+    pub async fn sign_in(
+        &self,
+        email: String,
+        password: SecretString,
+    ) -> anyhow::Result<reqwest::Response> {
+        let client = reqwest::Client::new();
+        let body = format!(
+            r#"{{"email": "{}", "password": "{}" }}"#,
+            email,
+            password.expose_secret()
+        );
+        client
+            .post(&format!("{}/accounts/sign-in", self.root_uri))
+            .body(body)
+            .header(CONTENT_TYPE, HeaderValue::from_static("application/json"))
+            .send()
+            .await
+            .map_err(|e| e.into())
+    }
+
     pub async fn list_users(&self) -> anyhow::Result<reqwest::Response> {
         let client = reqwest::Client::new();
-
         client
             .get(&format!("{}/accounts/users", self.root_uri))
             .send()
             .await
             .map_err(|e| e.into())
+    }
+
+    pub async fn register_user(&self, input: SignUpInput) -> anyhow::Result<SignUpOutput> {
+        let repo = PgUserRepository::new(self.pool.clone());
+
+        repo.create(input).await.map_err(|e| e.into())
     }
 }
 
@@ -106,14 +134,19 @@ pub async fn spawn_test_app() -> anyhow::Result<TestApp> {
     // アプリケーション設定を取得
     let dir = Path::new(env!("CARGO_MANIFEST_DIR"));
     let settings_dir = dir.join("..").join(SETTINGS_DIR_NAME);
-    let mut app_settings = retrieve_app_settings(app_env, settings_dir)?;
+    let mut settings = retrieve_app_settings(app_env, settings_dir)?;
 
     // テスト用のデータベースの名前を設定
-    app_settings.database.name = format!("awe_test_{}", Uuid::new_v4()).replace('-', "_");
+    settings.database.name = format!("awe_test_{}", Uuid::new_v4()).replace('-', "_");
     // テスト用のデータベースを作成して、接続及び構成
-    let pool = configure_database(&app_settings.database).await?;
+    let pool = configure_database(&settings.database).await?;
     // テスト用のデータベースに接続するリポジトリのコンテナを構築
-    let context = RequestContext::new(app_settings.password.pepper.clone(), pool.clone());
+    let context = RequestContext::new(
+        settings.http_server.clone(),
+        settings.password.clone(),
+        settings.authorization.clone(),
+        pool.clone(),
+    );
 
     // ポート0を指定してTCPソケットにバインドすることで、OSにポート番号の決定を委譲
     let listener = TcpListener::bind("localhost:0").context("failed to bind random port")?;
@@ -125,7 +158,7 @@ pub async fn spawn_test_app() -> anyhow::Result<TestApp> {
 
     Ok(TestApp {
         root_uri: format!("http://localhost:{}", port),
-        pepper: app_settings.password.pepper,
+        settings,
         pool,
     })
 }
@@ -255,11 +288,11 @@ pub fn tokyo_tower_sign_up_request_body() -> SignUpReqBody {
     }
 }
 
-pub fn sign_up_input(body: SignUpReqBody, pepper: &SecretString) -> SignUpInput {
+pub fn sign_up_input(body: SignUpReqBody, settings: &PasswordSettings) -> SignUpInput {
     let email = EmailAddress::new(body.email).unwrap();
     let user_permission_code = UserPermissionCode::new(body.user_permission_code);
     let password = RawPassword::new(body.password).unwrap();
-    let password = generate_phc_string(&password, pepper).unwrap();
+    let password = generate_phc_string(&password, settings).unwrap();
     let family_name = FamilyName::new(body.family_name).unwrap();
     let given_name = GivenName::new(body.given_name).unwrap();
     let postal_code = PostalCode::new(body.postal_code).unwrap();

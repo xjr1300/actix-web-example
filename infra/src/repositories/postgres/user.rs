@@ -1,18 +1,20 @@
 use async_trait::async_trait;
-use secrecy::ExposeSecret;
+use secrecy::{ExposeSecret, SecretString};
 use sqlx::Postgres;
 use time::OffsetDateTime;
 use uuid::Uuid;
 
 use domain::models::primitives::*;
 use domain::models::user::{User, UserId, UserPermission, UserPermissionCode, UserPermissionName};
-use domain::repositories::user::{SignUpInput, SingUpOutput, UserRepository};
+use domain::repositories::user::{SignUpInput, SignUpOutput, UserCredential, UserRepository};
 use domain::{DomainError, DomainResult};
 
 use crate::repositories::postgres::{commit_transaction, PgRepository};
 
-/// PostgreSQLユーザー・リポジトリ
+/// PostgreSQLユーザーリポジトリ
 pub type PgUserRepository = PgRepository<User>;
+
+type PgQueryAs<'a, T> = sqlx::query::QueryAs<'a, sqlx::Postgres, T, sqlx::postgres::PgArguments>;
 
 #[async_trait]
 impl UserRepository for PgUserRepository {
@@ -27,20 +29,37 @@ impl UserRepository for PgUserRepository {
             .collect::<_>())
     }
 
+    /// ユーザーのクレデンシャルを取得する。
+    ///
+    /// # 引数
+    ///
+    /// * `email` - ユーザーのEメールアドレス
+    ///
+    /// # 戻り値
+    ///
+    /// ユーザーのクレデンシャル
+    async fn user_credential(&self, email: EmailAddress) -> DomainResult<Option<UserCredential>> {
+        user_credential_query(email)
+            .fetch_optional(&self.pool)
+            .await
+            .map(|r| r.map(|r| r.into()))
+            .map_err(|e| DomainError::Repository(e.into()))
+    }
+
     /// ユーザーを登録する。
     ///
     /// ユーザーを登録するとき、ユーザーの作成日時と更新日時は何らかの日時を設定する。
     /// 登録後に返されるユーザーの作成日時と更新日時の作成日時と更新日時には、データベースに登録
     /// した日時が設定されている。
-    async fn create(&self, user: SignUpInput) -> DomainResult<SingUpOutput> {
+    async fn create(&self, user: SignUpInput) -> DomainResult<SignUpOutput> {
         let mut tx = self.begin().await?;
-        let added_user = insert_user_query(user)
+        let inserted_user = insert_user_query(user)
             .fetch_one(&mut *tx)
             .await
             .map_err(|e| DomainError::Repository(e.into()))?;
         commit_transaction(tx).await?;
 
-        Ok(added_user.into())
+        Ok(inserted_user.into())
     }
 }
 
@@ -89,38 +108,6 @@ impl From<RetrievedUserRow> for User {
     }
 }
 
-#[derive(sqlx::FromRow)]
-pub struct InsertedUserRow {
-    pub id: Uuid,
-    pub email: String,
-    pub password: String,
-    pub active: bool,
-    pub user_permission_code: i16,
-    pub family_name: String,
-    pub given_name: String,
-    pub postal_code: String,
-    pub address: String,
-    pub fixed_phone_number: Option<String>,
-    pub mobile_phone_number: Option<String>,
-    pub remarks: Option<String>,
-    pub last_logged_in_at: Option<OffsetDateTime>,
-    pub created_at: OffsetDateTime,
-    pub updated_at: OffsetDateTime,
-}
-
-impl From<InsertedUserRow> for SingUpOutput {
-    fn from(row: InsertedUserRow) -> Self {
-        Self {
-            id: UserId::new(row.id),
-            email: EmailAddress::new(row.email).unwrap(),
-            created_at: row.created_at,
-            updated_at: row.updated_at,
-        }
-    }
-}
-
-type PgQueryAs<'a, T> = sqlx::query::QueryAs<'a, sqlx::Postgres, T, sqlx::postgres::PgArguments>;
-
 /// ユーザーのリストを取得するクエリを生成する。
 ///
 /// # 戻り値
@@ -140,6 +127,95 @@ pub fn list_users_query<'a>() -> PgQueryAs<'a, RetrievedUserRow> {
     )
 }
 
+#[derive(sqlx::FromRow)]
+pub struct UserCredentialRow {
+    #[sqlx(rename = "id")]
+    pub user_id: Uuid,
+    pub email: String,
+    pub password: String,
+    pub active: bool,
+    #[sqlx(rename = "sign_in_attempted_at")]
+    pub attempted_at: Option<OffsetDateTime>,
+    #[sqlx(rename = "number_of_sign_in_failures")]
+    pub number_of_failures: i16,
+}
+
+impl From<UserCredentialRow> for UserCredential {
+    fn from(row: UserCredentialRow) -> Self {
+        Self {
+            user_id: UserId::new(row.user_id),
+            email: EmailAddress::new(row.email).unwrap(),
+            password: PhcPassword::new(SecretString::new(row.password)).unwrap(),
+            active: row.active,
+            attempted_at: row.attempted_at,
+            number_of_failures: row.number_of_failures,
+        }
+    }
+}
+
+/// ユーザークレデンシャルを取得するクエリを生成する。
+///
+/// # 引数
+///
+/// * `email` - ユーザークレデンシャルを取得するユーザーのEメール・アドレス
+///
+/// # 戻り値
+///
+/// ユーザークレデンシャルを取得するクエリ
+pub fn user_credential_query<'a>(email: EmailAddress) -> PgQueryAs<'a, UserCredentialRow> {
+    sqlx::query_as::<Postgres, UserCredentialRow>(
+        r#"
+        SELECT
+            id, email, password, active, sign_in_attempted_at, number_of_sign_in_failures
+        FROM
+            users
+        WHERE
+            email = $1
+        "#,
+    )
+    .bind(email.value)
+}
+
+#[derive(sqlx::FromRow)]
+pub struct InsertedUserRow {
+    pub id: Uuid,
+    pub email: String,
+    pub password: String,
+    pub active: bool,
+    pub user_permission_code: i16,
+    pub family_name: String,
+    pub given_name: String,
+    pub postal_code: String,
+    pub address: String,
+    pub fixed_phone_number: Option<String>,
+    pub mobile_phone_number: Option<String>,
+    pub remarks: Option<String>,
+    pub last_logged_in_at: Option<OffsetDateTime>,
+    pub created_at: OffsetDateTime,
+    pub updated_at: OffsetDateTime,
+}
+
+impl From<InsertedUserRow> for SignUpOutput {
+    fn from(row: InsertedUserRow) -> Self {
+        Self {
+            id: UserId::new(row.id),
+            email: EmailAddress::new(row.email).unwrap(),
+            active: row.active,
+            user_permission_code: UserPermissionCode::new(row.user_permission_code),
+            family_name: FamilyName::new(row.family_name).unwrap(),
+            given_name: GivenName::new(row.given_name).unwrap(),
+            postal_code: PostalCode::new(row.postal_code).unwrap(),
+            address: Address::new(row.address).unwrap(),
+            fixed_phone_number: OptionalFixedPhoneNumber::try_from(row.fixed_phone_number).unwrap(),
+            mobile_phone_number: OptionalMobilePhoneNumber::try_from(row.mobile_phone_number)
+                .unwrap(),
+            remarks: OptionalRemarks::try_from(row.remarks).unwrap(),
+            created_at: row.created_at,
+            updated_at: row.updated_at,
+        }
+    }
+}
+
 /// ユーザーをデータベースに登録するクエリを生成する。
 ///
 /// # 引数
@@ -151,9 +227,9 @@ pub fn list_users_query<'a>() -> PgQueryAs<'a, RetrievedUserRow> {
 /// ユーザーをデータベースに登録するクエリ
 pub fn insert_user_query<'a>(user: SignUpInput) -> PgQueryAs<'a, InsertedUserRow> {
     let password = user.password.value.expose_secret().to_string();
-    let fixed_phone_number = user.fixed_phone_number.value().map(|n| n.to_string());
-    let mobile_phone_number = user.mobile_phone_number.value().map(|n| n.to_string());
-    let remarks = user.remarks.value().map(|n| n.to_string());
+    let fixed_phone_number = user.fixed_phone_number.owned_value();
+    let mobile_phone_number = user.mobile_phone_number.owned_value();
+    let remarks = user.remarks.owned_value();
 
     sqlx::query_as::<Postgres, InsertedUserRow>(
         r#"

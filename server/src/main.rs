@@ -3,11 +3,11 @@ use std::path::Path;
 
 use anyhow::anyhow;
 
-use infra::RequestContext;
-use server::settings::{
+use configurations::settings::{
     retrieve_app_settings, AppEnvironment, ENV_APP_ENVIRONMENT, ENV_APP_ENVIRONMENT_DEFAULT,
     SETTINGS_DIR_NAME,
 };
+use infra::RequestContext;
 use server::startup::build_http_server;
 use server::telemetry::{generate_log_subscriber, init_log_subscriber, LOG_SUBSCRIBER_NAME};
 
@@ -24,6 +24,8 @@ async fn main() -> anyhow::Result<()> {
     // アプリケーション設定を取得
     let settings_dir = Path::new(SETTINGS_DIR_NAME);
     let app_settings = retrieve_app_settings(app_env, settings_dir)?;
+    // 認証設定を検証
+    app_settings.authorization.validate()?;
 
     // サブスクライバを初期化
     let subscriber = generate_log_subscriber(
@@ -33,12 +35,19 @@ async fn main() -> anyhow::Result<()> {
     );
     init_log_subscriber(subscriber);
 
+    // HTTPサーバーがリッスンするポート
+    let address = format!("localhost:{}", app_settings.http_server.port);
+
     // データベース接続プールを取得
     let pool = app_settings.database.connection_pool();
-    let context = RequestContext::new(app_settings.password.pepper, pool);
+    let context = RequestContext::new(
+        app_settings.http_server,
+        app_settings.password,
+        app_settings.authorization,
+        pool,
+    );
 
     // Httpサーバーがリッスンするポートをバインド
-    let address = format!("localhost:{}", app_settings.http_server.port);
     let listener = TcpListener::bind(&address).map_err(|e| anyhow!(e))?;
     tracing::info!("Http server is listening on `{}`", &address);
 

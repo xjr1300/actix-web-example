@@ -4,8 +4,9 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-actix-web = "4.5.1"
+actix-web = { version = "4.5.1", features = ["cookie"] }
 async-trait = "0.1.79"
+configurations = { path = "../configurations" }
 domain = { path = "../domain" }
 macros = { path = "../macros" }
 mime = "0.3.17"

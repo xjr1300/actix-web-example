@@ -6,7 +6,7 @@ use std::borrow::Cow;
 use time::macros::offset;
 use time::OffsetDateTime;
 
-/// ドメイン・エラー
+/// ドメインエラー
 #[derive(Debug, thiserror::Error)]
 pub enum DomainError {
     /// 予期していないエラー
@@ -15,17 +15,17 @@ pub enum DomainError {
 
     /// 検証エラー
     ///
-    /// 文字列を数値に変換できない場合など、ドメイン・ルールを伴わない検証エラーを表現する。
+    /// 文字列を数値に変換できない場合など、ドメインルールを伴わない検証エラーを表現する。
     #[error("{0}")]
     Validation(Cow<'static, str>),
 
-    /// ドメイン・ルールエラー
+    /// ドメインルールエラー
     ///
-    /// ドメイン・ルールに違反したことを表現する。
+    /// ドメインルールに違反したことを表現する。
     #[error("{0}")]
     DomainRule(Cow<'static, str>),
 
-    /// リポジトリ・エラー
+    /// リポジトリエラー
     ///
     /// リポジトリで発生したエラーを表現する。
     #[error("{0}")]

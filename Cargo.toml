@@ -1,3 +1,11 @@
 [workspace]
-members = ["domain", "infra", "macros", "server", "test_suite", "use_cases"]
+members = [
+    "configurations",
+    "domain",
+    "infra",
+    "macros",
+    "server",
+    "test_suite",
+    "use_cases",
+]
 resolver = "2"

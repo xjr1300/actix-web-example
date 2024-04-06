@@ -59,7 +59,7 @@ pub(crate) fn impl_string_primitive(input: DeriveInput) -> syn::Result<TokenStre
     let generics = &input.generics;
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
 
-    // ドメイン・プリミティブの名前を取得
+    // ドメインプリミティブの名前を取得
     let StringPrimitiveAttr { name, message } = retrieve_primitive_info(ident, &input.attrs)?;
 
     // フィールドを持つ構造体であることを確認
@@ -113,7 +113,7 @@ struct StringPrimitiveAttr {
     message: String,
 }
 
-/// ドメイン・プリミティブの属性を取得する。
+/// ドメインプリミティブの属性を取得する。
 ///
 /// ```text
 /// #[derive(StringPrimitive)]
