@@ -16,5 +16,6 @@ services:
     build:
       context: .
       dockerfile: ./docker/redis/Dockerfile
+    container_name: "${REDIS_CONTAINER}"
     ports:
       - 6379:6379

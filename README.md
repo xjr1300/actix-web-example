@@ -46,6 +46,11 @@
   * `hash_memory`: パスワードをハッシュ化するときのメモリサイズ
   * `hash_iterations`: パスワードをハッシュ化するときの反復回数
   * `hash_parallelism`: パスワードをハッシュ化するときの並列度
+* `authorization`: 認証設定
+  * `attempting_seconds`: ユーザーがサインインを試行する期間（秒）
+  * `number_of_failures`: ユーザーのアカウントをロックするまでの失敗回数
+  * `access_token_seconds`: アクセストークンの有効期限（秒）
+  * `refresh_token_seconds`: リフレッシュトークンの有効期限（秒）
 * `database`: データベース設定
   * `require_ssl`: SSL接続を要求するかどうか(`true`, `false`)
   * `log_statements`: ログに記録するSQLステートメントの最小レベル(`debug`, `info`, `warn`, `error`)
@@ -65,7 +70,7 @@
   * `SameSite`属性に設定ファイルの値を設定（`Strict`または`Lax`）
   * `Secure`属性を設定ファイルに従って設定
   * `HttpOnly`属性を設定
-* ユーザーが`sign_in`の`attempt_duration`時間内に`number_of_failures`回以上認証に失敗した場合、アカウントをロック
+* ユーザーが`authorization`の`attempting_seconds`時間内に`number_of_failures`回以上認証に失敗した場合、アカウントをロック
 
 ## ログの記録
 

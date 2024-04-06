@@ -19,9 +19,9 @@ pub struct PasswordSettings {
 #[derive(Debug, Clone, serde::Deserialize)]
 pub struct AuthorizationSettings {
     /// ユーザーのサインインの試行を許可する期間（秒）
-    pub sign_in_attempting_seconds: u32,
+    pub attempting_seconds: u32,
     /// ユーザーのアカウントをロックするまでのサインイン失敗回数
-    pub number_of_sign_in_failures: u8,
+    pub number_of_failures: u8,
     /// JWTトークンを生成するときの秘密鍵
     pub jwt_token_secret: SecretString,
     /// アクセストークンの有効期限（秒）
@@ -53,8 +53,8 @@ pub mod tests {
 
     pub fn authorization_settings() -> AuthorizationSettings {
         AuthorizationSettings {
-            sign_in_attempting_seconds: 300,
-            number_of_sign_in_failures: 5,
+            attempting_seconds: 300,
+            number_of_failures: 5,
             jwt_token_secret: SecretString::new(String::from("asdf")),
             access_token_seconds: 300,
             refresh_token_seconds: 400,
