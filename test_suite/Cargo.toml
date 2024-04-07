@@ -11,6 +11,7 @@ actix-web = "4.5.1"
 anyhow = "1.0.81"
 configurations = { path = "../configurations" }
 cookie = "0.18.1"
+deadpool-redis = { version = "0.15.0", features = ["rt_tokio_1", "serde"] }
 domain = { path = "../domain" }
 dotenvx = "0.0.2"
 infra = { path = "../infra" }

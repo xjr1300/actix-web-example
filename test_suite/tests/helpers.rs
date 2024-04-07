@@ -65,7 +65,7 @@ pub struct TestApp {
     pub root_uri: String,
     /// アプリの設定
     pub settings: AppSettings,
-    /// データベース接続プール
+    /// PostgreSQL接続プール
     pub pool: PgPool,
 }
 
@@ -139,13 +139,16 @@ pub async fn spawn_test_app() -> anyhow::Result<TestApp> {
     // テスト用のデータベースの名前を設定
     settings.database.name = format!("awe_test_{}", Uuid::new_v4()).replace('-', "_");
     // テスト用のデータベースを作成して、接続及び構成
-    let pool = configure_database(&settings.database).await?;
+    let pg_pool = configure_database(&settings.database).await?;
+    // Redis接続プールを構築
+    let redis_pool = settings.redis.connection_pool()?;
     // テスト用のデータベースに接続するリポジトリのコンテナを構築
     let context = RequestContext::new(
         settings.http_server.clone(),
         settings.password.clone(),
         settings.authorization.clone(),
-        pool.clone(),
+        pg_pool.clone(),
+        redis_pool.clone(),
     );
 
     // ポート0を指定してTCPソケットにバインドすることで、OSにポート番号の決定を委譲
@@ -159,7 +162,7 @@ pub async fn spawn_test_app() -> anyhow::Result<TestApp> {
     Ok(TestApp {
         root_uri: format!("http://localhost:{}", port),
         settings,
-        pool,
+        pool: pg_pool,
     })
 }
 
@@ -171,7 +174,7 @@ pub async fn spawn_test_app() -> anyhow::Result<TestApp> {
 ///
 /// # 戻り値
 ///
-/// データベース接続プール
+/// PostgreSQL接続プール
 pub async fn configure_database(settings: &DatabaseSettings) -> anyhow::Result<PgPool> {
     // データベースを構築
     let mut connection = PgConnection::connect_with(&settings.without_db())

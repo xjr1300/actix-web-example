@@ -35,19 +35,24 @@ async fn main() -> anyhow::Result<()> {
     );
     init_log_subscriber(subscriber);
 
-    // HTTPサーバーがリッスンするポート
+    // HTTPサーバーがリクエストを待ち受けるアドレス
     let address = format!("localhost:{}", app_settings.http_server.port);
 
-    // データベース接続プールを取得
-    let pool = app_settings.database.connection_pool();
+    // PostgreSQL接続プールを取得
+    let pg_pool = app_settings.database.connection_pool();
+    // Redis接続プールを取得
+    let redis_pool = app_settings.redis.connection_pool()?;
+
+    // リクエストコンテキストを構築
     let context = RequestContext::new(
         app_settings.http_server,
         app_settings.password,
         app_settings.authorization,
-        pool,
+        pg_pool,
+        redis_pool,
     );
 
-    // Httpサーバーがリッスンするポートをバインド
+    // Httpサーバーがリクエストを待ち受けるアドレスをバインド
     let listener = TcpListener::bind(&address).map_err(|e| anyhow!(e))?;
     tracing::info!("Http server is listening on `{}`", &address);
 

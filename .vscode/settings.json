@@ -2,6 +2,7 @@
   "rust-analyzer.showUnlinkedFileNotification": false,
   "cSpell.words": [
     "datetime",
+    "deadpool",
     "dotenvx",
     "Hasher",
     "Hmac",

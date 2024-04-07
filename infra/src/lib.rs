@@ -1,9 +1,10 @@
 pub mod repositories;
 pub mod routes;
 
-use configurations::settings::HttpServerSettings;
+use deadpool_redis::Pool as RedisPool;
 use sqlx::PgPool;
 
+use configurations::settings::HttpServerSettings;
 use domain::repositories::user::UserRepository;
 use repositories::postgres::user::PgUserRepository;
 use use_cases::settings::{AuthorizationSettings, PasswordSettings};
@@ -17,8 +18,10 @@ pub struct RequestContext {
     pub password_settings: PasswordSettings,
     /// 認証設定
     pub authorization_settings: AuthorizationSettings,
-    /// データベース接続プール
-    pool: PgPool,
+    /// PostgreSQL接続プール
+    pg_pool: PgPool,
+    /// Redis接続プール
+    redis_pool: RedisPool,
 }
 
 impl RequestContext {
@@ -26,7 +29,11 @@ impl RequestContext {
     ///
     /// # 引数
     ///
-    /// * `pool` - データベース接続プール
+    /// * `http_server_settings` - HTTPサーバー設定
+    /// * `password_settings` - パスワード設定
+    /// * `authorization_settings` - 認証設定
+    /// * `pg_pool` - PostgreSQL接続プール
+    /// * `redis_pool` - Redis接続プール
     ///
     /// # 戻り値
     ///
@@ -35,13 +42,15 @@ impl RequestContext {
         http_server_settings: HttpServerSettings,
         password_settings: PasswordSettings,
         authorization_settings: AuthorizationSettings,
-        pool: PgPool,
+        pg_pool: PgPool,
+        redis_pool: RedisPool,
     ) -> Self {
         Self {
             http_server_settings,
             password_settings,
             authorization_settings,
-            pool,
+            pg_pool,
+            redis_pool,
         }
     }
 
@@ -51,6 +60,6 @@ impl RequestContext {
     ///
     /// ユーザーリポジトリ
     pub fn user_repository(&self) -> impl UserRepository {
-        PgUserRepository::new(self.pool.clone())
+        PgUserRepository::new(self.pg_pool.clone())
     }
 }
