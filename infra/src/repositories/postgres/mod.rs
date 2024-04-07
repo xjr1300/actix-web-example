@@ -12,7 +12,7 @@ pub type PgTransaction<'c> = Transaction<'c, Postgres>;
 /// PostgreSQLリポジトリ構造体
 #[derive(Debug, Clone)]
 pub struct PgRepository<T> {
-    /// データベース接続プール
+    /// PostgreSQL接続プール
     pub pool: PgPool,
     /// マーカー
     _phantom: PhantomData<T>,
@@ -23,7 +23,7 @@ impl<T> PgRepository<T> {
     ///
     /// # 引数
     ///
-    /// * `pool` - データベース接続プール
+    /// * `pool` - PostgreSQL接続プール
     ///
     /// # 戻り値
     ///

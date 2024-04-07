@@ -5,15 +5,21 @@ edition = "2021"
 
 [dependencies]
 actix-web = { version = "4.5.1", features = ["cookie"] }
+anyhow = "1.0.81"
 async-trait = "0.1.79"
 configurations = { path = "../configurations" }
+deadpool-redis = { version = "0.15.0", features = ["rt_tokio_1", "serde"] }
 domain = { path = "../domain" }
 macros = { path = "../macros" }
 mime = "0.3.17"
 paste = "1.0.14"
+redis = { version = "0.25.3", default-features = false, features = [
+    "tokio-comp",
+] }
 secrecy = { version = "0.8.0", features = ["alloc", "serde"] }
 serde = { version = "1.0.197", features = ["derive"] }
 serde_json = "1.0.115"
+sha2 = "0.10.8"
 thiserror = "1.0.58"
 time = { version = "0.3.34", features = [
     "parsing",

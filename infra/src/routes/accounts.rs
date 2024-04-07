@@ -7,9 +7,8 @@ use uuid::Uuid;
 
 use domain::models::primitives::*;
 use domain::models::user::{User, UserPermissionCode};
-use use_cases::accounts::{
-    SignInUseCaseInput, SignInUseCaseOutput, SignUpUseCaseInputBuilder, SignUpUseCaseOutput,
-};
+use domain::repositories::token::TokenPairWithExpiration;
+use use_cases::accounts::{SignInUseCaseInput, SignUpUseCaseInputBuilder, SignUpUseCaseOutput};
 use use_cases::UseCaseError;
 
 use crate::routes::{ProcessRequestError, ProcessRequestResult};
@@ -219,8 +218,8 @@ pub struct SignInResBody {
     pub refresh: String,
 }
 
-impl From<&SignInUseCaseOutput> for SignInResBody {
-    fn from(value: &SignInUseCaseOutput) -> Self {
+impl From<&TokenPairWithExpiration> for SignInResBody {
+    fn from(value: &TokenPairWithExpiration) -> Self {
         Self {
             access: value.access.expose_secret().to_string(),
             refresh: value.refresh.expose_secret().to_string(),

@@ -2,6 +2,7 @@ use std::path::Path;
 
 use actix_web::cookie::SameSite;
 use config::{Config, FileFormat, FileSourceFile};
+use deadpool_redis::{Config as RedisConfig, Pool as RedisPool};
 use enum_display::EnumDisplay;
 use log::LevelFilter;
 use secrecy::{ExposeSecret as _, SecretString};
@@ -57,12 +58,14 @@ impl From<String> for AppEnvironment {
 pub struct AppSettings {
     /// HTTPサーバー設定
     pub http_server: HttpServerSettings,
-    /// パスワード設定
-    pub password: PasswordSettings,
-    /// 人s表設定
-    pub authorization: AuthorizationSettings,
     /// データベース設定
     pub database: DatabaseSettings,
+    /// Redis設定
+    pub redis: RedisSettings,
+    /// パスワード設定
+    pub password: PasswordSettings,
+    /// 認証設定
+    pub authorization: AuthorizationSettings,
     /// ロギング設定
     pub logging: LoggingSettings,
 }
@@ -116,13 +119,6 @@ pub struct DatabaseSettings {
     pub log_statements: LevelFilter,
 }
 
-/// ロギング設定
-#[derive(Debug, Clone, serde::Deserialize)]
-pub struct LoggingSettings {
-    /// ログレベル
-    pub level: log::Level,
-}
-
 impl DatabaseSettings {
     /// データベースを指定しない接続オプションを取得する。
     ///
@@ -152,11 +148,11 @@ impl DatabaseSettings {
         options.log_statements(self.log_statements)
     }
 
-    /// データベース接続プールを取得する。
+    /// PostgreSQL接続プールを取得する。
     ///
     /// # 戻り値
     ///
-    /// データベース接続プール
+    /// PostgreSQL接続プール
     pub fn connection_pool(&self) -> PgPool {
         PgPoolOptions::new()
             .acquire_timeout(std::time::Duration::from_secs(
@@ -164,6 +160,40 @@ impl DatabaseSettings {
             ))
             .connect_lazy_with(self.with_db())
     }
+}
+
+/// Redis設定
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct RedisSettings {
+    /// ポート番号
+    pub port: u16,
+    /// ホスト
+    pub host: String,
+}
+
+impl RedisSettings {
+    /// Redis接続プールを取得する。
+    ///
+    /// # 戻り値
+    ///
+    /// Redis接続プール
+    pub fn connection_pool(&self) -> anyhow::Result<RedisPool> {
+        let url = format!("redis://{}:{}", &self.host, self.port);
+        let config = RedisConfig {
+            url: Some(url),
+            connection: None,
+            pool: None,
+        };
+
+        Ok(config.create_pool(None)?)
+    }
+}
+
+/// ロギング設定
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct LoggingSettings {
+    /// ログレベル
+    pub level: log::Level,
 }
 
 /// アプリケーション設定を取得する。

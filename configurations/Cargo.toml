@@ -7,6 +7,7 @@ edition = "2021"
 actix-web = "4.5.1"
 anyhow = "1.0.81"
 config = "0.14.0"
+deadpool-redis = { version = "0.15.0", features = ["rt_tokio_1", "serde"] }
 enum-display = "0.1.4"
 log = { version = "0.4.21", features = ["serde"] }
 secrecy = { version = "0.8.0", features = ["alloc", "serde"] }
