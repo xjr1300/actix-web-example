@@ -56,7 +56,8 @@ pub struct TokenContent {
 }
 
 /// トークンの種類
-#[derive(Debug, Clone, Copy, EnumDisplay)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EnumDisplay)]
+#[enum_display(case = "Lower")]
 pub enum TokenType {
     /// アクセストークン
     Access,

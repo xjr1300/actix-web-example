@@ -169,3 +169,33 @@ const USER_ID_CONSTRUCTION_FAILED: &str =
     "Redisに登録された値からユーザーIDを構築できませんでした。";
 const TOKEN_TYPE_CONSTRUCTION_FAILED: &str =
     "Redisに登録された値からトークンの種類を構築できませんでした。";
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Redisに登録するユーザーIDとトークンの種類を示す文字列を生成できることを確認
+    #[test]
+    fn can_generate_user_id_and_token_type_string() -> anyhow::Result<()> {
+        let user_id = UserId::default();
+        let token_type = TokenType::Access;
+        let expected = format!("{}:{}", user_id, token_type);
+        let actual = generate_value(user_id, token_type);
+        assert_eq!(expected, actual);
+
+        Ok(())
+    }
+
+    /// Redisに登録されている文字列の形式を、ユーザーIDとトークンの種類に分割できることを確認
+    #[test]
+    fn can_split_user_id_and_token_type() -> anyhow::Result<()> {
+        let expected_user_id = UserId::default();
+        let expected_token_type = TokenType::Refresh;
+        let input = format!("{}:{}", expected_user_id, expected_token_type);
+        let (user_id, token_type) = split_value(&input)?;
+        assert_eq!(expected_user_id, user_id);
+        assert_eq!(expected_token_type, token_type);
+
+        Ok(())
+    }
+}

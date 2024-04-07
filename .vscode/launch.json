@@ -7,18 +7,31 @@
         {
             "type": "lldb",
             "request": "launch",
+            "name": "Cargo test",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--lib"
+                ]
+            },
+            "args": []
+        },
+        {
+            "type": "lldb",
+            "request": "attach",
+            "name": "Attach",
+            "program": "${workspaceFolder}/<program>"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
             "name": "Debug unit tests in library 'domain'",
             "cargo": {
                 "args": [
                     "test",
                     "--no-run",
-                    "--lib",
-                    "--package=domain"
                 ],
-                "filter": {
-                    "name": "domain",
-                    "kind": "lib"
-                }
             },
             "args": [],
             "cwd": "${workspaceFolder}"
