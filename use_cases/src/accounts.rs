@@ -1,9 +1,8 @@
 use time::{Duration, OffsetDateTime};
 
-use secrecy::SecretString;
-
 use domain::models::primitives::*;
 use domain::models::user::{User, UserId, UserPermissionCode};
+use domain::repositories::token::TokenPairWithExpiration;
 use domain::repositories::user::{SignUpInputBuilder, SignUpOutput, UserRepository};
 use macros::Builder;
 
@@ -177,7 +176,7 @@ pub async fn sign_in(
     authorization_settings: &AuthorizationSettings,
     repository: impl UserRepository,
     input: SignInUseCaseInput,
-) -> UseCaseResult<SignInUseCaseOutput> {
+) -> UseCaseResult<TokenPairWithExpiration> {
     // 不許可／未認証エラー
     let unauthorized_error =
         UseCaseError::unauthorized("Eメールアドレスまたはパスワードが間違っています。");
@@ -219,7 +218,7 @@ pub async fn sign_in(
         &authorization_settings.jwt_token_secret,
     )?;
 
-    Ok(SignInUseCaseOutput {
+    Ok(TokenPairWithExpiration {
         access: tokens.access,
         access_expiration,
         refresh: tokens.refresh,
@@ -238,18 +237,6 @@ pub struct SignInUseCaseInput {
 /// JWTトークンの正規表現
 pub const JWT_TOKEN_EXPRESSION: &str =
     r#"^([a-zA-Z0-9_=]+)\.([a-zA-Z0-9_=]+)\.([a-zA-Z0-9_\-\+\/=]*)$"#;
-
-/// サインインユースケース出力
-pub struct SignInUseCaseOutput {
-    /// アクセストークン
-    pub access: SecretString,
-    /// アクセストークンの有効期限
-    pub access_expiration: OffsetDateTime,
-    /// リフレッシュトークン
-    pub refresh: SecretString,
-    /// リフレッシュトークンの有効期限
-    pub refresh_expiration: OffsetDateTime,
-}
 
 /// ユーザーのリストを取得する。
 ///
