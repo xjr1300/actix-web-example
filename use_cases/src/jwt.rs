@@ -8,6 +8,7 @@ use time::OffsetDateTime;
 use uuid::Uuid;
 
 use domain::models::user::UserId;
+use domain::repositories::token::TokenPair;
 
 use crate::{UseCaseError, UseCaseResult};
 
@@ -55,14 +56,6 @@ fn generate_hmac_key(secret_key: &SecretString) -> UseCaseResult<HmacKey> {
             "JWTを生成するためにHMACを秘密鍵から構築するときにエラーが発生しました。",
         )
     })
-}
-
-/// JWTトークンのペア
-pub struct TokenPair {
-    /// アクセストークン
-    pub access: SecretString,
-    /// リフレッシュトークン
-    pub refresh: SecretString,
 }
 
 /// JWTのアクセストークンとリフレッシュトークンを生成する。

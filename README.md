@@ -1,5 +1,11 @@
 # actix-web-example
 
+## 参考文献
+
+* [Zero To Production In Rust](https://www.zero2prod.com/)
+* [proc-macro-workshop/builderをやってみる](https://blog.ymgyt.io/entry/proc-macro-workshop-builder/)
+* [RustでClean Architectureを実装してみる](https://zenn.dev/htlsne/articles/rust-clean-architecture)
+
 ## 設定
 
 ### 環境変数
@@ -12,7 +18,7 @@
 #### アプリケーション設定
 
 * `APP_ENVIRONMENT`: アプリケーションの動作環境を`development`または`production`で指定
-* `APP_HTTP_SERVER__JWT_TOKEN_SECRET`: JWTトークンを生成するときの秘密鍵
+* `APP_AUTHORIZATION__JWT_TOKEN_SECRET`: JWTトークンを生成するときの秘密鍵
 * `APP_PASSWORD__PEPPER`: パスワードをハッシュ化する前に、パスワードに追加する文字列
 
 #### データベース設定
@@ -23,6 +29,10 @@
 * `POSTGRES_DATABASE__PORT`: PostgreSQLコンテナに接続するホスト側のポートの番号
 * `POSTGRES_DATABASE__HOST`: PostgreSQLコンテナに接続するホストの名前
 * `DATABASE_URL`: PostgreSQLの接続URL
+
+#### Redis設定
+
+* `REDIS_CONTAINER`: Redisのコンテナ名
 
 ### 設定ファイル
 
@@ -42,6 +52,11 @@
   * `hash_memory`: パスワードをハッシュ化するときのメモリサイズ
   * `hash_iterations`: パスワードをハッシュ化するときの反復回数
   * `hash_parallelism`: パスワードをハッシュ化するときの並列度
+* `authorization`: 認証設定
+  * `attempting_seconds`: ユーザーがサインインを試行する期間（秒）
+  * `number_of_failures`: ユーザーのアカウントをロックするまでの失敗回数
+  * `access_token_seconds`: アクセストークンの有効期限（秒）
+  * `refresh_token_seconds`: リフレッシュトークンの有効期限（秒）
 * `database`: データベース設定
   * `require_ssl`: SSL接続を要求するかどうか(`true`, `false`)
   * `log_statements`: ログに記録するSQLステートメントの最小レベル(`debug`, `info`, `warn`, `error`)
@@ -61,7 +76,7 @@
   * `SameSite`属性に設定ファイルの値を設定（`Strict`または`Lax`）
   * `Secure`属性を設定ファイルに従って設定
   * `HttpOnly`属性を設定
-* ユーザーが`sign_in`の`attempt_duration`時間内に`number_of_failures`回以上認証に失敗した場合、アカウントをロック
+* ユーザーが`authorization`の`attempting_seconds`時間内に`number_of_failures`回以上認証に失敗した場合、アカウントをロック
 
 ## ログの記録
 
@@ -168,13 +183,13 @@ cargo audit fix --dry-run
 
 ## テーブルの制約名の形式
 
-| 制約の種類                 | 制約名の形式                          | 備考          |
-| -------------------------- | ------------------------------------- | ------------- |
-| 主キー制約                 | `pk_<table-name>`                     | Primary key   |
+| 制約の種類               | 制約名の形式                          | 備考          |
+| ------------------------ | ------------------------------------- | ------------- |
+| 主キー制約               | `pk_<table-name>`                     | Primary key   |
 | ユニークインデックス制約 | `ak_<table-name>-<field>[_<field>..]` | Alternate key |
-| インデックス制約           | `ix_<table-name>-<field>[_<field>..]` | Index         |
-| 外部キー制約               | `fk_<table-name>-<relationship>`      | Foreign key   |
-| チェック制約               | `ck_<table-name>-<content>`           | Check         |
+| インデックス制約         | `ix_<table-name>-<field>[_<field>..]` | Index         |
+| 外部キー制約             | `fk_<table-name>-<relationship>`      | Foreign key   |
+| チェック制約             | `ck_<table-name>-<content>`           | Check         |
 
 * `relationship`には、関連の説明を記述
 * `content`には、チェック制約の内容を記述
