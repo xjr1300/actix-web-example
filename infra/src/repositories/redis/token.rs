@@ -84,7 +84,10 @@ impl TokenRepository for RedisTokenRepository {
         let mut conn = self.connection().await?;
         let key = generate_key(token);
         let value = retrieve(&mut conn, &key).await?;
-        let (user_id, token_type) = split_value(&value)?;
+        if value.is_none() {
+            return Ok(None);
+        }
+        let (user_id, token_type) = split_value(&value.unwrap())?;
 
         Ok(Some(TokenContent {
             user_id,
@@ -123,8 +126,8 @@ async fn store(conn: &mut RedisConnection, key: &str, value: &str) -> DomainResu
 }
 
 /// Redisからキーで値を取得する。
-async fn retrieve(conn: &mut RedisConnection, key: &str) -> DomainResult<String> {
-    let value: String = conn.get(key).await.map_err(|e| {
+async fn retrieve(conn: &mut RedisConnection, key: &str) -> DomainResult<Option<String>> {
+    let value: Option<String> = conn.get(key).await.map_err(|e| {
         tracing::error!("{} {}({}:{})", RETRIEVE_ERROR, e, file!(), line!());
         DomainError::Repository(anyhow!("{}", RETRIEVE_ERROR))
     })?;
