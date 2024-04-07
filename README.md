@@ -1,5 +1,11 @@
 # actix-web-example
 
+## 参考文献
+
+* [Zero To Production In Rust](https://www.zero2prod.com/)
+* [proc-macro-workshop/builderをやってみる](https://blog.ymgyt.io/entry/proc-macro-workshop-builder/)
+* [RustでClean Architectureを実装してみる](https://zenn.dev/htlsne/articles/rust-clean-architecture)
+
 ## 設定
 
 ### 環境変数
