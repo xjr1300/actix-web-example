@@ -19,14 +19,37 @@ type PgQueryAs<'a, T> = sqlx::query::QueryAs<'a, sqlx::Postgres, T, sqlx::postgr
 #[async_trait]
 impl UserRepository for PgUserRepository {
     /// ユーザーのリストを取得する。
+    ///
+    /// # 戻り値
+    ///
+    /// ユーザーを格納したベクタ
     async fn list(&self) -> DomainResult<Vec<User>> {
         Ok(list_users_query()
             .fetch_all(&self.pool)
             .await
-            .map_err(|e| DomainError::Repository(e.into()))?
+            .map_err(|e| {
+                tracing::error!("{} ({}:{})", e, file!(), line!());
+                DomainError::Repository(e.into())
+            })?
             .into_iter()
             .map(|r| r.into())
             .collect::<_>())
+    }
+
+    /// ユーザーを取得する。
+    ///
+    /// # 戻り値
+    ///
+    /// ユーザー
+    async fn by_id(&self, user_id: UserId) -> DomainResult<Option<User>> {
+        Ok(user_by_id_query(user_id)
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(|e| {
+                tracing::error!("{} ({}:{})", e, file!(), line!());
+                DomainError::Repository(e.into())
+            })?
+            .map(|r| r.into()))
     }
 
     /// ユーザーのクレデンシャルを取得する。
@@ -43,7 +66,75 @@ impl UserRepository for PgUserRepository {
             .fetch_optional(&self.pool)
             .await
             .map(|r| r.map(|r| r.into()))
-            .map_err(|e| DomainError::Repository(e.into()))
+            .map_err(|e| {
+                tracing::error!("{} ({}:{})", e, file!(), line!());
+                DomainError::Repository(e.into())
+            })
+    }
+
+    /// ユーザーが最後にサインインした日時を更新する。
+    ///
+    /// # 引数
+    ///
+    /// * `user_id` - ユーザーID
+    async fn update_last_sign_in(&self, user_id: UserId) -> DomainResult<Option<OffsetDateTime>> {
+        let mut tx = self.begin().await?;
+        let row = update_last_sign_in_at_query(user_id)
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(|e| {
+                tracing::error!("{} ({}:{})", e, file!(), line!());
+                DomainError::Repository(e.into())
+            })?;
+        commit_transaction(tx).await?;
+
+        Ok(row.map(|r| r.last_sign_in_at))
+    }
+
+    /// 最初にサインインに失敗した日時を保存する。
+    ///
+    /// サインインに失敗した回数は1になる。
+    ///
+    /// # 引数
+    ///
+    /// * `user_id` - ユーザーID
+    async fn record_first_sign_in_failed(
+        &self,
+        user_id: UserId,
+    ) -> DomainResult<Option<UserCredential>> {
+        let mut tx = self.begin().await?;
+        let row = record_first_sign_in_failed_query(user_id)
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(|e| {
+                tracing::error!("{} ({}:{})", e, file!(), line!());
+                DomainError::Repository(e.into())
+            })?;
+        commit_transaction(tx).await?;
+
+        Ok(row.map(|r| r.into()))
+    }
+
+    /// 最初にサインインに失敗した日時をNULL、サインイン失敗回数を0にする。
+    ///
+    /// # 引数
+    ///
+    /// * `user_id` - ユーザーID
+    async fn clear_sign_in_failed_history(
+        &self,
+        user_id: UserId,
+    ) -> DomainResult<Option<UserCredential>> {
+        let mut tx = self.begin().await?;
+        let row = clear_sign_in_failed_history_query(user_id)
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(|e| {
+                tracing::error!("{} ({}:{})", e, file!(), line!());
+                DomainError::Repository(e.into())
+            })?;
+        commit_transaction(tx).await?;
+
+        Ok(row.map(|r| r.into()))
     }
 
     /// ユーザーを登録する。
@@ -56,7 +147,10 @@ impl UserRepository for PgUserRepository {
         let inserted_user = insert_user_query(user)
             .fetch_one(&mut *tx)
             .await
-            .map_err(|e| DomainError::Repository(e.into()))?;
+            .map_err(|e| {
+                tracing::error!("{} ({}:{})", e, file!(), line!());
+                DomainError::Repository(e.into())
+            })?;
         commit_transaction(tx).await?;
 
         Ok(inserted_user.into())
@@ -78,7 +172,9 @@ pub struct RetrievedUserRow {
     pub fixed_phone_number: Option<String>,
     pub mobile_phone_number: Option<String>,
     pub remarks: Option<String>,
-    pub last_logged_in_at: Option<OffsetDateTime>,
+    pub last_sign_in_at: Option<OffsetDateTime>,
+    pub sign_in_attempted_at: Option<OffsetDateTime>,
+    pub number_of_sign_in_failures: i16,
     pub created_at: OffsetDateTime,
     pub updated_at: OffsetDateTime,
 }
@@ -101,7 +197,10 @@ impl From<RetrievedUserRow> for User {
             mobile_phone_number: OptionalMobilePhoneNumber::try_from(row.mobile_phone_number)
                 .unwrap(),
             remarks: OptionalRemarks::try_from(row.remarks).unwrap(),
-            last_logged_in_at: row.last_logged_in_at,
+            last_sign_in_at: row.last_sign_in_at,
+            sign_in_attempted_at: row.sign_in_attempted_at,
+            number_of_sign_in_failures: NumberOfSignInFailures::new(row.number_of_sign_in_failures)
+                .unwrap(),
             created_at: row.created_at,
             updated_at: row.updated_at,
         }
@@ -117,14 +216,42 @@ pub fn list_users_query<'a>() -> PgQueryAs<'a, RetrievedUserRow> {
     sqlx::query_as::<Postgres, RetrievedUserRow>(
         r#"
         SELECT
-            u.id, u.email, u.password, u.active, u.user_permission_code, p.name user_permission_name,
-            u.family_name, u.given_name, u.postal_code, u.address, u.fixed_phone_number, u.mobile_phone_number,
-            u.remarks, u.last_logged_in_at, u.created_at, u.updated_at
+            u.id, u.email, u.password, u.active, u.user_permission_code, p.name
+            user_permission_name, u.family_name, u.given_name, u.postal_code, u.address,
+            u.fixed_phone_number, u.mobile_phone_number, u.remarks, u.last_sign_in_at,
+            u.sign_in_attempted_at, u.number_of_sign_in_failures, u.created_at,
+            u.updated_at
         FROM users u
         INNER JOIN user_permissions p ON u.user_permission_code = p.code
         ORDER BY created_at
+    "#,
+    )
+}
+
+/// ユーザーIDを元にユーザーを取得するクエリを生成する。
+///
+/// # 引数
+///
+/// * `user_id` - ユーザーID
+///
+/// # 戻り値
+///
+/// ユーザーIDを元にユーザーを取得するクエリ
+pub fn user_by_id_query<'a>(user_id: UserId) -> PgQueryAs<'a, RetrievedUserRow> {
+    sqlx::query_as::<Postgres, RetrievedUserRow>(
+        r#"
+        SELECT
+            u.id, u.email, u.password, u.active, u.user_permission_code, p.name
+            user_permission_name, u.family_name, u.given_name, u.postal_code, u.address,
+            u.fixed_phone_number, u.mobile_phone_number, u.remarks, u.last_sign_in_at,
+            u.sign_in_attempted_at, u.number_of_sign_in_failures, u.created_at,
+            u.updated_at
+        FROM users u
+        INNER JOIN user_permissions p ON u.user_permission_code = p.code
+        WHERE u.id = $1
         "#,
     )
+    .bind(user_id.value)
 }
 
 #[derive(sqlx::FromRow)]
@@ -176,6 +303,86 @@ pub fn user_credential_query<'a>(email: EmailAddress) -> PgQueryAs<'a, UserCrede
     .bind(email.value)
 }
 
+/// 最後にサインインした日時を更新するクエリを生成する。
+///
+/// # 引数
+///
+/// * `user_id` - 最後にサインインした日時を更新するユーザー
+///
+/// # 戻り値
+///
+/// 更新日時
+pub fn update_last_sign_in_at_query<'a>(user_id: UserId) -> PgQueryAs<'a, LastSignInAtRow> {
+    sqlx::query_as::<Postgres, LastSignInAtRow>(
+        r#"
+        UPDATE users
+            SET last_sign_in_at = CURRENT_TIMESTAMP
+        WHERE
+            id = $1
+        RETURNING
+            last_sign_in_at
+        "#,
+    )
+    .bind(user_id.value)
+}
+
+/// 最初にサインインに失敗したことを保存するクエリを生成する。
+///
+/// # 引数
+///
+/// * `user_id` - ユーザーID
+///
+/// # 戻り値
+///
+/// 最初にサインインに失敗したことを保存するクエリ
+pub fn record_first_sign_in_failed_query<'a>(user_id: UserId) -> PgQueryAs<'a, UserCredentialRow> {
+    sqlx::query_as::<Postgres, UserCredentialRow>(
+        r#"
+        UPDATE
+            users
+        SET
+            sign_in_attempted_at = CURRENT_TIMESTAMP,
+            number_of_sign_in_failures = 1
+        WHERE
+            id = $1
+        RETURNING
+            id, email, password, active, sign_in_attempted_at, number_of_sign_in_failures
+        "#,
+    )
+    .bind(user_id.value)
+}
+
+/// 最初にサインインに失敗した日時をNULL、サインイン失敗回数を0にするクエリを生成する。
+///
+/// # 引数
+///
+/// * `user_id` - ユーザーID
+///
+/// # 戻り値
+///
+/// 最初にサインインに失敗したことを保存するクエリ
+pub fn clear_sign_in_failed_history_query<'a>(user_id: UserId) -> PgQueryAs<'a, UserCredentialRow> {
+    sqlx::query_as::<Postgres, UserCredentialRow>(
+        r#"
+        UPDATE
+            users
+        SET
+            sign_in_attempted_at = NULL,
+            number_of_sign_in_failures = 0
+        WHERE
+            id = $1
+        RETURNING
+            id, email, password, active, sign_in_attempted_at, number_of_sign_in_failures
+        "#,
+    )
+    .bind(user_id.value)
+}
+
+#[derive(Debug, Clone, Copy, sqlx::FromRow)]
+pub struct LastSignInAtRow {
+    last_sign_in_at: OffsetDateTime,
+}
+
 #[derive(sqlx::FromRow)]
 pub struct InsertedUserRow {
     pub id: Uuid,
@@ -190,7 +397,6 @@ pub struct InsertedUserRow {
     pub fixed_phone_number: Option<String>,
     pub mobile_phone_number: Option<String>,
     pub remarks: Option<String>,
-    pub last_logged_in_at: Option<OffsetDateTime>,
     pub created_at: OffsetDateTime,
     pub updated_at: OffsetDateTime,
 }
@@ -236,11 +442,11 @@ pub fn insert_user_query<'a>(user: SignUpInput) -> PgQueryAs<'a, InsertedUserRow
         INSERT INTO users (
             id, email, password, active, user_permission_code, family_name, given_name,
             postal_code, address, fixed_phone_number, mobile_phone_number,
-            remarks, last_logged_in_at, created_at, updated_at
+            remarks, created_at, updated_at
         )
         VALUES (
             $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12,
-            NULL, STATEMENT_TIMESTAMP(), STATEMENT_TIMESTAMP()
+            STATEMENT_TIMESTAMP(), STATEMENT_TIMESTAMP()
         )
         RETURNING *
         "#,

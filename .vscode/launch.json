@@ -7,21 +7,40 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Cargo test",
+            "name": "Debug unit tests in library 'configurations'",
             "cargo": {
                 "args": [
                     "test",
                     "--no-run",
-                    "--lib"
-                ]
+                    "--lib",
+                    "--package=configurations"
+                ],
+                "filter": {
+                    "name": "configurations",
+                    "kind": "lib"
+                }
             },
-            "args": []
+            "args": [],
+            "cwd": "${workspaceFolder}"
         },
         {
             "type": "lldb",
-            "request": "attach",
-            "name": "Attach",
-            "program": "${workspaceFolder}/<program>"
+            "request": "launch",
+            "name": "Debug unit tests in library 'use_cases'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--lib",
+                    "--package=use_cases"
+                ],
+                "filter": {
+                    "name": "use_cases",
+                    "kind": "lib"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
         },
         {
             "type": "lldb",
@@ -31,7 +50,164 @@
                 "args": [
                     "test",
                     "--no-run",
+                    "--lib",
+                    "--package=domain"
                 ],
+                "filter": {
+                    "name": "domain",
+                    "kind": "lib"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug integration test 'tests'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--test=tests",
+                    "--package=macros"
+                ],
+                "filter": {
+                    "name": "tests",
+                    "kind": "test"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in library 'infra'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--lib",
+                    "--package=infra"
+                ],
+                "filter": {
+                    "name": "infra",
+                    "kind": "lib"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug example 'redis'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--example=redis",
+                    "--package=infra"
+                ],
+                "filter": {
+                    "name": "redis",
+                    "kind": "example"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in example 'redis'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--example=redis",
+                    "--package=infra"
+                ],
+                "filter": {
+                    "name": "redis",
+                    "kind": "example"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in library 'server'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--lib",
+                    "--package=server"
+                ],
+                "filter": {
+                    "name": "server",
+                    "kind": "lib"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug executable 'server'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=server",
+                    "--package=server"
+                ],
+                "filter": {
+                    "name": "server",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in executable 'server'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bin=server",
+                    "--package=server"
+                ],
+                "filter": {
+                    "name": "server",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug integration test 'integration_tests'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--ignored",
+                    "--no-run",
+                    "--test=integration_tests",
+                    "--package=test_suite"
+                ],
+                "filter": {
+                    "name": "integration_tests",
+                    "kind": "test"
+                }
             },
             "args": [],
             "cwd": "${workspaceFolder}"

@@ -10,6 +10,8 @@ use enum_display::EnumDisplay;
 
 pub type UseCaseResult<T> = Result<T, UseCaseError>;
 
+/// ユースケースエラーコード
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(u32)]
 pub enum UseCaseErrorCode {
     Unexpected = 0,

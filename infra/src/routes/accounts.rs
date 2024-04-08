@@ -287,7 +287,7 @@ impl From<User> for UserResBody {
             fixed_phone_number: value.fixed_phone_number.owned_value(),
             mobile_phone_number: value.mobile_phone_number.owned_value(),
             remarks: value.remarks.owned_value(),
-            last_logged_in_at: value.last_logged_in_at,
+            last_logged_in_at: value.last_sign_in_at,
             created_at: value.created_at,
             updated_at: value.updated_at,
         }

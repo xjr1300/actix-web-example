@@ -316,7 +316,6 @@ pub mod tests {
     fn can_retrieve_app_settings_for_production() -> anyhow::Result<()> {
         let crate_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
         let env_file = crate_dir.join("..").join(".env");
-        println!("enf_file: {}", env_file.display());
         dotenvx::from_path(env_file)?;
 
         let settings_dir = crate_dir.join("..").join(SETTINGS_DIR_NAME);

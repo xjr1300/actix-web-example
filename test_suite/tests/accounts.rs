@@ -9,7 +9,8 @@ use secrecy::SecretString;
 use time::{Duration, OffsetDateTime};
 
 use domain::repositories::token::TokenType;
-use infra::repositories::postgres::user::insert_user_query;
+use domain::repositories::user::UserRepository;
+use infra::repositories::postgres::user::{insert_user_query, PgUserRepository};
 use infra::repositories::postgres::PgRepository;
 use infra::routes::accounts::{SignInResBody, SignUpReqBody, SignUpResBody, UserResBody};
 use infra::routes::ErrorResponseBody;
@@ -202,6 +203,7 @@ async fn user_can_not_sign_up_when_user_permission_code_is_invalid() -> anyhow::
 ///   * 確認するクッキーの属性は、`SameSite`、`Secure`、`HttpOnly`、`Expires`
 /// * アクセス及びリフレッシュトークンをハッシュ化した値をキー、ユーザーIDを値としたペアが、
 ///   適切な有効期限で`Redis`に登録されていることを確認
+/// * ユーザーが最後にサインインした日時がデータベースに記録されていることを確認
 #[tokio::test]
 #[ignore]
 async fn user_can_sign_in() -> anyhow::Result<()> {
@@ -214,13 +216,12 @@ async fn user_can_sign_in() -> anyhow::Result<()> {
     let sign_in_input = sign_up_input(body.clone(), &app.settings.password);
     let sign_up_output = app.register_user(sign_in_input.clone()).await?;
 
-    // クッキーにはミリ秒まで記録されないため1秒過去に設定
-    let requesting_at = OffsetDateTime::now_utc() - Duration::seconds(1);
-
     // 実行
+    let started_at = OffsetDateTime::now_utc() - Duration::seconds(1);
     let response = app
         .sign_in(body.email.clone(), body.password.clone())
         .await?;
+    let finished_at = OffsetDateTime::now_utc() + Duration::seconds(1);
     let ResponseParts {
         status_code,
         headers,
@@ -228,9 +229,8 @@ async fn user_can_sign_in() -> anyhow::Result<()> {
     } = split_response(response).await?;
     let context_type = headers.get(CONTENT_TYPE);
     let tokens: SignInResBody = serde_json::from_str(&body)?;
-
-    // クッキーにはミリ秒まで記録されないため1秒未来に設定
-    let received_at = OffsetDateTime::now_utc() + Duration::seconds(1);
+    let user_repo = PgUserRepository::new(app.pg_pool.clone());
+    let user = user_repo.by_id(sign_up_output.id).await?;
 
     // レスポンスを検証
     assert_eq!(StatusCode::OK, status_code);
@@ -253,8 +253,8 @@ async fn user_can_sign_in() -> anyhow::Result<()> {
         http_server_settings.same_site,
         http_server_settings.secure,
         true,
-        requesting_at,
-        received_at,
+        started_at,
+        finished_at,
         authorization_settings.access_token_seconds,
     );
     // リフレッシュトークンのクッキ＝を検証
@@ -263,8 +263,8 @@ async fn user_can_sign_in() -> anyhow::Result<()> {
         http_server_settings.same_site,
         http_server_settings.secure,
         true,
-        requesting_at,
-        received_at,
+        started_at,
+        finished_at,
         authorization_settings.refresh_token_seconds,
     );
     // アクセス／リフレッシュトークンを検証
@@ -290,6 +290,24 @@ async fn user_can_sign_in() -> anyhow::Result<()> {
     let access_content = refresh_content.unwrap();
     assert_eq!(sign_up_output.id, access_content.user_id);
     assert_eq!(TokenType::Refresh, access_content.token_type);
+
+    // データベースに最後にログインした日時が記録されているか確認
+    assert!(user.is_some());
+    let user = user.unwrap();
+    assert!(user.last_sign_in_at.is_some());
+    let last_logged_in_at = user.last_sign_in_at.unwrap();
+    assert!(
+        started_at <= last_logged_in_at,
+        "{} < {} is not satisfied",
+        started_at,
+        last_logged_in_at
+    );
+    assert!(
+        last_logged_in_at <= finished_at,
+        "{} < {} is not satisfied",
+        last_logged_in_at,
+        finished_at
+    );
 
     Ok(())
 }
@@ -342,13 +360,81 @@ fn inspect_token_cookie_spec(
     );
 }
 
+/// 間違ったパスワードでサインインしたときに、サインインできないことを確認
+///
+/// * サインインに失敗した最初の日時とサインインに失敗した回数が記録されていることを確認
+#[tokio::test]
+#[ignore]
+async fn user_can_not_sign_in_with_wrong_email() -> anyhow::Result<()> {
+    // 準備
+    let app = spawn_test_app().await?;
+    let json = sign_up_request_body_json();
+    let body = sign_up_request_body(&json);
+    let sign_in_input = sign_up_input(body.clone(), &app.settings.password);
+    let sign_up_output = app.register_user(sign_in_input.clone()).await?;
+
+    // 実行
+    let started_at = OffsetDateTime::now_utc() - Duration::seconds(1);
+    let response = app
+        .sign_in(
+            body.email.clone(),
+            SecretString::new(String::from("1a@sE4tea%c-")),
+        )
+        .await?;
+    let finished_at = OffsetDateTime::now_utc() + Duration::seconds(1);
+    let ResponseParts {
+        status_code,
+        headers,
+        body,
+    } = split_response(response).await?;
+    let context_type = headers.get(CONTENT_TYPE);
+    let body: ErrorResponseBody = serde_json::from_str(&body)?;
+    let user_repo = PgUserRepository::new(app.pg_pool.clone());
+    let user = user_repo.by_id(sign_up_output.id).await?;
+
+    // 検証
+    assert_eq!(StatusCode::UNAUTHORIZED, status_code);
+    assert!(context_type.is_some());
+    let content_type = context_type.unwrap();
+    assert_eq!(CONTENT_TYPE_APPLICATION_JSON, content_type.to_str()?);
+    assert_eq!(Some(UseCaseErrorCode::Unauthorized as u32), body.error_code);
+    assert_eq!(
+        "Eメールアドレスまたはパスワードが間違っています。",
+        body.message
+    );
+    assert!(user.is_some());
+    let user = user.unwrap();
+    // 最初にサインインに失敗した日時と、サインイン失敗回数を確認
+    let credential = user_repo.user_credential(user.email).await?;
+    assert!(credential.is_some());
+    let credential = credential.unwrap();
+    let attempted_at = credential.attempted_at.unwrap();
+    assert!(
+        started_at <= attempted_at,
+        "{} < {} is not satisfied",
+        started_at,
+        attempted_at
+    );
+    assert!(
+        attempted_at <= finished_at,
+        "{} < {} is not satisfied",
+        attempted_at,
+        finished_at
+    );
+    assert_eq!(1, credential.number_of_failures);
+
+    Ok(())
+}
+
 /// # サインイン統合テストリスト
 ///
-/// * パスワードが間違っているときにユーザーがサインインできず、ユーザーがサインインを試行した日時と
+/// * Eメールが間違っているときにユーザーがサインインできず、ユーザーがサインインを試行した日時と
 ///   サインイン試行回数の1がデータベースに記録されていることを確認
+/// * パスワードが間違っているときにユーザーがサインインできないことを確認
 /// * 指定したEメールアドレスを持つユーザーが登録されていないときに、NOT FOUNDが返されることを確認
 /// * 指定時間内にユーザーが2回サインインに失敗したときに、データベースに記録されているユーザーの
 ///   試行開始日時が変更されず、サインイン試行回数が2になっていることを確認
+/// * ユーザーがサインインに失敗した後にサインインに成功したとき、サインイン失敗履歴がクリアされていることを確認
 /// * アカウントがロックされているユーザーがサインインできないことを確認
 /// * ユーザーが指定時間内に指定回数サインインに失敗したときに、アカウントがロックされていることを確認
 /// * ユーザーが指定時間内に指定回数未満でサインインに成功したときに、データベースに記録された

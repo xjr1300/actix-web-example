@@ -206,8 +206,20 @@ pub async fn sign_in(
         &password_settings.pepper,
         &credential.password,
     )? {
+        user_repository
+            .record_first_sign_in_failed(credential.user_id)
+            .await
+            .map_err(|_| {
+                UseCaseError::repository("ユーザーのサインイン履歴の保存に失敗しました。")
+            })?;
         return Err(unauthorized_error);
     }
+
+    // 最後にサインインした日時を更新
+    user_repository
+        .update_last_sign_in(credential.user_id)
+        .await
+        .map_err(UseCaseError::from)?;
 
     // アクセストークン及びリフレッシュトークンを生成
     let dt = OffsetDateTime::now_utc();

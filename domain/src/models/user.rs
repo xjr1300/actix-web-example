@@ -51,8 +51,12 @@ pub struct User {
     pub mobile_phone_number: OptionalMobilePhoneNumber,
     /// 備考
     pub remarks: OptionalRemarks,
-    /// 最終ログイン日時
-    pub last_logged_in_at: Option<OffsetDateTime>,
+    /// 最終サインイン日時
+    pub last_sign_in_at: Option<OffsetDateTime>,
+    /// 最初にサインインを試行した日時
+    pub sign_in_attempted_at: Option<OffsetDateTime>,
+    /// サインインに失敗した回数
+    pub number_of_sign_in_failures: NumberOfSignInFailures,
     /// 作成日時
     pub created_at: OffsetDateTime,
     /// 更新日時
@@ -169,6 +173,8 @@ mod tests {
                 .fixed_phone_number(fixed_phone_number.clone())
                 .mobile_phone_number(mobile_phone_number.clone())
                 .remarks(remarks.clone())
+                .sign_in_attempted_at(None)
+                .number_of_sign_in_failures(NumberOfSignInFailures::new(0).unwrap())
                 .created_at(dt)
                 .updated_at(dt)
                 .build();
