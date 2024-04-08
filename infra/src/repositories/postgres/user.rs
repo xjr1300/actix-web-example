@@ -80,7 +80,7 @@ impl UserRepository for PgUserRepository {
     /// # 引数
     ///
     /// * `user_id` - ユーザーID
-    async fn update_last_sign_in(&self, user_id: UserId) -> DomainResult<Option<OffsetDateTime>> {
+    async fn update_last_sign_in(&self, user_id: UserId) -> DomainResult<Option<UserCredential>> {
         let mut tx = self.begin().await?;
         let row = update_last_sign_in_at_query(user_id)
             .fetch_optional(&mut *tx)
@@ -91,7 +91,7 @@ impl UserRepository for PgUserRepository {
             })?;
         commit_transaction(tx).await?;
 
-        Ok(row.map(|r| r.last_sign_in_at))
+        Ok(row.map(|r| r.into()))
     }
 
     /// 最初にサインインに失敗した日時を保存する。
@@ -328,6 +328,7 @@ pub struct UserCredentialRow {
     pub email: String,
     pub password: String,
     pub active: bool,
+    pub user_permission_code: i16,
     #[sqlx(rename = "sign_in_attempted_at")]
     pub attempted_at: Option<OffsetDateTime>,
     #[sqlx(rename = "number_of_sign_in_failures")]
@@ -341,6 +342,7 @@ impl From<UserCredentialRow> for UserCredential {
             email: EmailAddress::new(row.email).unwrap(),
             password: PhcPassword::new(SecretString::new(row.password)).unwrap(),
             active: row.active,
+            user_permission_code: UserPermissionCode::try_from(row.user_permission_code).unwrap(),
             attempted_at: row.attempted_at,
             number_of_failures: row.number_of_failures,
         }
@@ -360,7 +362,8 @@ pub fn user_credential_query<'q>(email: EmailAddress) -> PgQueryAs<'q, UserCrede
     sqlx::query_as::<Postgres, UserCredentialRow>(
         r#"
         SELECT
-            id, email, password, active, sign_in_attempted_at, number_of_sign_in_failures
+            id, email, password, active, user_permission_code,
+            sign_in_attempted_at, number_of_sign_in_failures
         FROM
             users
         WHERE
@@ -379,8 +382,8 @@ pub fn user_credential_query<'q>(email: EmailAddress) -> PgQueryAs<'q, UserCrede
 /// # 戻り値
 ///
 /// 更新日時
-pub fn update_last_sign_in_at_query<'q>(user_id: UserId) -> PgQueryAs<'q, LastSignInAtRow> {
-    sqlx::query_as::<Postgres, LastSignInAtRow>(
+pub fn update_last_sign_in_at_query<'q>(user_id: UserId) -> PgQueryAs<'q, UserCredentialRow> {
+    sqlx::query_as::<Postgres, UserCredentialRow>(
         r#"
         UPDATE
             users
@@ -391,7 +394,8 @@ pub fn update_last_sign_in_at_query<'q>(user_id: UserId) -> PgQueryAs<'q, LastSi
         WHERE
             id = $1
         RETURNING
-            last_sign_in_at
+            id, email, password, active, user_permission_code,
+            sign_in_attempted_at, number_of_sign_in_failures
         "#,
     )
     .bind(user_id.value)
@@ -417,7 +421,8 @@ pub fn record_first_sign_in_failed_query<'q>(user_id: UserId) -> PgQueryAs<'q, U
         WHERE
             id = $1
         RETURNING
-            id, email, password, active, sign_in_attempted_at, number_of_sign_in_failures
+            id, email, password, active, user_permission_code,
+            sign_in_attempted_at, number_of_sign_in_failures
         "#,
     )
     .bind(user_id.value)
@@ -444,7 +449,8 @@ pub fn increment_number_of_sign_in_failures_query<'q>(
         WHERE
             id = $1
         RETURNING
-            id, email, password, active, sign_in_attempted_at, number_of_sign_in_failures
+            id, email, password, active, user_permission_code,
+            sign_in_attempted_at, number_of_sign_in_failures
         "#,
     )
     .bind(user_id.value)
@@ -495,15 +501,11 @@ pub fn clear_sign_in_failed_history_query<'q>(user_id: UserId) -> PgQueryAs<'q, 
         WHERE
             id = $1
         RETURNING
-            id, email, password, active, sign_in_attempted_at, number_of_sign_in_failures
+            id, email, password, active, user_permission_code,
+            sign_in_attempted_at, number_of_sign_in_failures
         "#,
     )
     .bind(user_id.value)
-}
-
-#[derive(Debug, Clone, Copy, sqlx::FromRow)]
-pub struct LastSignInAtRow {
-    last_sign_in_at: OffsetDateTime,
 }
 
 #[derive(sqlx::FromRow)]

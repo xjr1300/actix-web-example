@@ -266,10 +266,11 @@ pub async fn sign_in(
     }
 
     // 最後にサインインした日時を更新
-    user_repo
+    let credential = user_repo
         .update_last_sign_in(credential.user_id)
         .await
         .map_err(UseCaseError::from)?;
+    let credential = credential.unwrap();
 
     // アクセストークン及びリフレッシュトークンを生成
     let dt = OffsetDateTime::now_utc();
@@ -292,7 +293,11 @@ pub async fn sign_in(
         refresh_ttl: authorization_settings.refresh_token_seconds,
     };
     token_repo
-        .register_token_pair(credential.user_id, token_with_ttls)
+        .register_token_pair(
+            credential.user_id,
+            token_with_ttls,
+            credential.user_permission_code,
+        )
         .await?;
 
     Ok(SignInUseCaseOutput {

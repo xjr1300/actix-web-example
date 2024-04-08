@@ -43,7 +43,7 @@ pub trait UserRepository: Sync + Send {
     /// * `user_id` - ユーザーID
     ///
     /// # ユーザーが最後にサインインした日時
-    async fn update_last_sign_in(&self, user_id: UserId) -> DomainResult<Option<OffsetDateTime>>;
+    async fn update_last_sign_in(&self, user_id: UserId) -> DomainResult<Option<UserCredential>>;
 
     /// 最初にサインインに失敗した日時を保存する。
     ///
@@ -195,6 +195,8 @@ pub struct UserCredential {
     pub password: PhcPassword,
     /// アクティブフラグ
     pub active: bool,
+    /// ユーザー権限コード
+    pub user_permission_code: UserPermissionCode,
     /// ユーザーが最初にサインインの試行に失敗した日時
     pub attempted_at: Option<OffsetDateTime>,
     /// ユーザーが最初にサインインの試行に失敗した日時から、サインインに失敗した回数

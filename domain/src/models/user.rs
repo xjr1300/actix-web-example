@@ -88,10 +88,9 @@ impl UserValidator for User {
 }
 
 /// ユーザー権限コード
-//pub type UserPermissionCode = NumericCode<UserPermission, i16>;
 #[repr(i16)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EnumDisplay)]
-#[enum_display(Lower)]
+#[enum_display(case = "Lower")]
 pub enum UserPermissionCode {
     Admin = 1,
     General = 2,
@@ -106,6 +105,20 @@ impl TryFrom<i16> for UserPermissionCode {
             2 => Ok(UserPermissionCode::General),
             _ => Err(DomainError::Validation(
                 "ユーザー権限区分コードが範囲外です。".into(),
+            )),
+        }
+    }
+}
+
+impl TryFrom<&str> for UserPermissionCode {
+    type Error = DomainError;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        match value {
+            "admin" => Ok(UserPermissionCode::Admin),
+            "general" => Ok(UserPermissionCode::General),
+            _ => Err(DomainError::Validation(
+                "ユーザー権限区分が範囲外です。".into(),
             )),
         }
     }
