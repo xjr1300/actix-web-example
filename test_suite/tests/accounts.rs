@@ -559,6 +559,59 @@ async fn sign_in_failed_history_was_cleared_when_user_sign_in_succeeded() -> any
 #[ignore]
 async fn a_failed_sign_in_after_the_period_has_elapsed_is_considered_the_first_failed(
 ) -> anyhow::Result<()> {
+    // 準備
+    let mut settings = app_settings()?;
+    settings.authorization.number_of_failures = 2;
+    settings.authorization.attempting_seconds = 2;
+    let app = spawn_test_app(settings).await?;
+    let json = sign_up_request_body_json();
+    let body = sign_up_request_body(&json);
+    let sign_in_input = sign_up_input(body.clone(), &app.settings.password);
+    let _ = app.register_user(sign_in_input.clone()).await?;
+    let user_repo = PgUserRepository::new(app.pg_pool.clone());
+
+    // サインイン失敗
+    let _ = app
+        .sign_in(
+            body.email.clone(),
+            SecretString::new(String::from("1a@sE4tea%c-")),
+        )
+        .await?;
+    // 2.5秒スリープ
+    tokio::time::sleep(tokio::time::Duration::from_millis(2500)).await;
+    // サインイン失敗
+    let started_at = OffsetDateTime::now_utc();
+    let _ = app
+        .sign_in(
+            body.email.clone(),
+            SecretString::new(String::from("1a@sE4tea%c-")),
+        )
+        .await?;
+    let finished_at = OffsetDateTime::now_utc();
+    // クレデンシャルを取得
+    let credential = user_repo
+        .user_credential(sign_in_input.email.clone())
+        .await?
+        .unwrap();
+
+    // 検証
+    assert_eq!(1, credential.number_of_failures);
+    assert!(credential.attempted_at.is_some());
+    let attempted_at = credential.attempted_at.unwrap();
+    assert!(
+        started_at <= attempted_at,
+        "{} < {} is not satisfied",
+        started_at,
+        attempted_at
+    );
+    assert!(
+        attempted_at <= finished_at,
+        "{} < {} is not satisfied",
+        attempted_at,
+        finished_at
+    );
+    assert!(credential.active);
+
     Ok(())
 }
 
