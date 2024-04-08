@@ -47,6 +47,7 @@ pub struct TokenPairWithTtl<'a> {
 }
 
 /// トークンが保有している値
+#[derive(Debug, Clone, Copy)]
 pub struct TokenContent {
     /// ユーザーID
     pub user_id: UserId,

@@ -8,7 +8,7 @@ use crate::helpers::spawn_test_app;
 async fn transaction_works() -> anyhow::Result<()> {
     // 準備
     let app = spawn_test_app().await?;
-    let repo = PgRepository::<i32>::new(app.pool.clone());
+    let repo = PgRepository::<i32>::new(app.pg_pool.clone());
 
     // リードコミット
     {

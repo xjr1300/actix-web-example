@@ -5,12 +5,14 @@ use cookie::Cookie;
 use regex::Regex;
 use reqwest::header::{CONTENT_TYPE, SET_COOKIE};
 use reqwest::StatusCode;
+use secrecy::SecretString;
+use time::{Duration, OffsetDateTime};
 
+use domain::repositories::token::TokenType;
 use infra::repositories::postgres::user::insert_user_query;
 use infra::repositories::postgres::PgRepository;
 use infra::routes::accounts::{SignInResBody, SignUpReqBody, SignUpResBody, UserResBody};
 use infra::routes::ErrorResponseBody;
-use time::{Duration, OffsetDateTime};
 use use_cases::accounts::JWT_TOKEN_EXPRESSION;
 use use_cases::{UseCaseErrorCode, ERR_SAME_EMAIL_ADDRESS_IS_REGISTERED};
 
@@ -209,8 +211,8 @@ async fn user_can_sign_in() -> anyhow::Result<()> {
     let authorization_settings = &app.settings.authorization;
     let json = sign_up_request_body_json();
     let body = sign_up_request_body(&json);
-    let input = sign_up_input(body.clone(), &app.settings.password);
-    app.register_user(input.clone()).await?;
+    let sign_in_input = sign_up_input(body.clone(), &app.settings.password);
+    let sign_up_output = app.register_user(sign_in_input.clone()).await?;
 
     // クッキーにはミリ秒まで記録されないため1秒過去に設定
     let requesting_at = OffsetDateTime::now_utc() - Duration::seconds(1);
@@ -270,6 +272,24 @@ async fn user_can_sign_in() -> anyhow::Result<()> {
     assert!(regex.is_match(&tokens.access));
     assert!(regex.is_match(&tokens.refresh));
     assert_ne!(tokens.access, tokens.refresh);
+
+    // Redisにアクセストークンが登録されており、アクセストークンをキーとした値が、
+    // 適切なユーザーIDとトークンの種類であるか確認
+    let access_token = SecretString::new(tokens.access.clone());
+    let access_content = app.retrieve_token_content(&access_token).await;
+    assert!(access_content.is_some());
+    let access_content = access_content.unwrap();
+    assert_eq!(sign_up_output.id, access_content.user_id);
+    assert_eq!(TokenType::Access, access_content.token_type);
+
+    // Redisにリフレッシュトークンが登録されており、リフレッシュトークンをキーとした値が、
+    // 適切なユーザーIDとトークンの種類であるか確認
+    let refresh_token = SecretString::new(tokens.refresh.clone());
+    let refresh_content = app.retrieve_token_content(&refresh_token).await;
+    assert!(refresh_content.is_some());
+    let access_content = refresh_content.unwrap();
+    assert_eq!(sign_up_output.id, access_content.user_id);
+    assert_eq!(TokenType::Refresh, access_content.token_type);
 
     Ok(())
 }
@@ -342,7 +362,7 @@ fn inspect_token_cookie_spec(
 async fn can_list_users() -> anyhow::Result<()> {
     // 準備
     let app = spawn_test_app().await?;
-    let repo = PgRepository::<i32>::new(app.pool.clone());
+    let repo = PgRepository::<i32>::new(app.pg_pool.clone());
     let json = sign_up_request_body_json();
     let body1 = sign_up_request_body(&json);
     let input1 = sign_up_input(body1.clone(), &app.settings.password);

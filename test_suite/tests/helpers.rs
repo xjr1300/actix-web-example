@@ -2,6 +2,8 @@ use std::net::TcpListener;
 use std::path::Path;
 
 use anyhow::Context as _;
+use deadpool_redis::Pool as RedisPool;
+use infra::repositories::redis::token::RedisTokenRepository;
 use once_cell::sync::Lazy;
 use reqwest::header::{HeaderValue, CONTENT_TYPE};
 use secrecy::{ExposeSecret, SecretString};
@@ -14,8 +16,9 @@ use configurations::settings::{
 };
 use domain::models::primitives::*;
 use domain::models::user::{UserId, UserPermission, UserPermissionCode, UserPermissionName};
-use domain::repositories::user::{SignUpInput, SignUpInputBuilder};
-use domain::repositories::user::{SignUpOutput, UserRepository};
+use domain::repositories::token::TokenContent;
+use domain::repositories::token::TokenRepository;
+use domain::repositories::user::{SignUpInput, SignUpInputBuilder, SignUpOutput, UserRepository};
 use infra::repositories::postgres::user::PgUserRepository;
 use infra::routes::accounts::SignUpReqBody;
 use infra::RequestContext;
@@ -66,7 +69,9 @@ pub struct TestApp {
     /// アプリの設定
     pub settings: AppSettings,
     /// PostgreSQL接続プール
-    pub pool: PgPool,
+    pub pg_pool: PgPool,
+    /// Redis接続プール
+    pub redis_pool: RedisPool,
 }
 
 impl TestApp {
@@ -111,9 +116,15 @@ impl TestApp {
     }
 
     pub async fn register_user(&self, input: SignUpInput) -> anyhow::Result<SignUpOutput> {
-        let repo = PgUserRepository::new(self.pool.clone());
+        let repo = PgUserRepository::new(self.pg_pool.clone());
 
         repo.create(input).await.map_err(|e| e.into())
+    }
+
+    /// トークンを元にRedisに登録されている値を取得する。
+    pub async fn retrieve_token_content(&self, token: &SecretString) -> Option<TokenContent> {
+        let repo = RedisTokenRepository::new(self.redis_pool.clone());
+        repo.retrieve_token_content(token).await.unwrap()
     }
 }
 
@@ -162,7 +173,8 @@ pub async fn spawn_test_app() -> anyhow::Result<TestApp> {
     Ok(TestApp {
         root_uri: format!("http://localhost:{}", port),
         settings,
-        pool: pg_pool,
+        pg_pool,
+        redis_pool,
     })
 }
 
