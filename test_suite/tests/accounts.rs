@@ -615,9 +615,31 @@ async fn a_failed_sign_in_after_the_period_has_elapsed_is_considered_the_first_f
     Ok(())
 }
 
+/// アカウントがロックされているユーザーがサインインできないことを確認
+#[tokio::test]
+#[ignore]
+async fn the_user_locked_account_can_not_sign_in() -> anyhow::Result<()> {
+    let settings = app_settings()?;
+    let app = spawn_test_app(settings).await?;
+    let json = sign_up_request_body_json();
+    let body = sign_up_request_body(&json);
+    let mut sign_in_input = sign_up_input(body.clone(), &app.settings.password);
+    sign_in_input.active = false;
+    let _ = app.register_user(sign_in_input.clone()).await?;
+
+    let response = app
+        .sign_in(body.email.clone(), body.password.clone())
+        .await?;
+    let ResponseParts { status_code, .. } = split_response(response).await?;
+
+    assert_eq!(StatusCode::UNAUTHORIZED, status_code);
+
+    Ok(())
+}
+
+///
 /// # サインイン統合テストリスト
 ///
-/// * アカウントがロックされているユーザーがサインインできないことを確認
 /// * ユーザーが指定時間内に指定回数サインインに失敗したときに、アカウントがロックされていることを確認
 /// * `Redis`に登録されたアクセス及びリフレッシュトークンが、有効期限を超えたときに削除されている
 ///   ことを確認
