@@ -618,7 +618,7 @@ async fn a_failed_sign_in_after_the_period_has_elapsed_is_considered_the_first_f
 /// アカウントがロックされているユーザーがサインインできないことを確認
 #[tokio::test]
 #[ignore]
-async fn the_user_locked_account_can_not_sign_in() -> anyhow::Result<()> {
+async fn the_user_locked_the_account_can_not_sign_in() -> anyhow::Result<()> {
     let settings = app_settings()?;
     let app = spawn_test_app(settings).await?;
     let json = sign_up_request_body_json();
@@ -637,10 +637,43 @@ async fn the_user_locked_account_can_not_sign_in() -> anyhow::Result<()> {
     Ok(())
 }
 
-///
+/// ユーザーが指定時間内に指定回数サインインに失敗したときに、アカウントがロックされていることを確認
+#[tokio::test]
+#[ignore]
+async fn the_user_account_was_locked_after_the_user_failed_to_sign_in_specified_times(
+) -> anyhow::Result<()> {
+    // 準備
+    let mut settings = app_settings()?;
+    settings.authorization.number_of_failures = 2;
+    let app = spawn_test_app(settings).await?;
+    let json = sign_up_request_body_json();
+    let body = sign_up_request_body(&json);
+    let sign_in_input = sign_up_input(body.clone(), &app.settings.password);
+    let _ = app.register_user(sign_in_input.clone()).await?;
+    let user_repo = PgUserRepository::new(app.pg_pool.clone());
+
+    // サインイン失敗
+    for _ in 0..2 {
+        let _ = app
+            .sign_in(
+                body.email.clone(),
+                SecretString::new(String::from("1a@sE4tea%c-")),
+            )
+            .await?;
+    }
+    // クレデンシャルを取得
+    let credential = user_repo
+        .user_credential(sign_in_input.email.clone())
+        .await?
+        .unwrap();
+
+    assert!(!credential.active);
+
+    Ok(())
+}
+
 /// # サインイン統合テストリスト
 ///
-/// * ユーザーが指定時間内に指定回数サインインに失敗したときに、アカウントがロックされていることを確認
 /// * `Redis`に登録されたアクセス及びリフレッシュトークンが、有効期限を超えたときに削除されている
 ///   ことを確認
 
