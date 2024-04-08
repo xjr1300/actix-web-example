@@ -5,8 +5,8 @@ use deadpool_redis::Pool as RedisPool;
 use sqlx::PgPool;
 
 use configurations::settings::HttpServerSettings;
-use domain::repositories::user::UserRepository;
-use repositories::postgres::user::PgUserRepository;
+use domain::repositories::{token::TokenRepository, user::UserRepository};
+use repositories::{postgres::user::PgUserRepository, redis::token::RedisTokenRepository};
 use use_cases::settings::{AuthorizationSettings, PasswordSettings};
 
 /// リクエストコンテキスト
@@ -61,5 +61,14 @@ impl RequestContext {
     /// ユーザーリポジトリ
     pub fn user_repository(&self) -> impl UserRepository {
         PgUserRepository::new(self.pg_pool.clone())
+    }
+
+    /// トークンリポジトリを返す。
+    ///
+    /// # 戻り値
+    ///
+    /// トークンリポジトリ
+    pub fn token_repository(&self) -> impl TokenRepository {
+        RedisTokenRepository::new(self.redis_pool.clone())
     }
 }

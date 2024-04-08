@@ -206,7 +206,7 @@ pub struct LoggingSettings {
 /// # 戻り値
 ///
 /// アプリケーション設定
-pub fn retrieve_app_settings<P: AsRef<Path>>(
+pub fn read_app_settings<P: AsRef<Path>>(
     app_env: AppEnvironment,
     settings_dir: P,
 ) -> anyhow::Result<AppSettings> {
@@ -264,9 +264,7 @@ pub mod tests {
     use log::LevelFilter;
     use secrecy::ExposeSecret;
 
-    use crate::settings::{
-        retrieve_app_settings, AppEnvironment, DatabaseSettings, SETTINGS_DIR_NAME,
-    };
+    use crate::settings::{read_app_settings, AppEnvironment, DatabaseSettings, SETTINGS_DIR_NAME};
 
     /// 文字列からアプリの動作環境を正しく判定できることを確認
     #[test]
@@ -295,7 +293,7 @@ pub mod tests {
         dotenvx::from_path(env_file)?;
 
         let settings_dir = crate_dir.join("..").join(SETTINGS_DIR_NAME);
-        let app_settings = retrieve_app_settings(AppEnvironment::Development, settings_dir)?;
+        let app_settings = read_app_settings(AppEnvironment::Development, settings_dir)?;
         assert_eq!(8000, app_settings.http_server.port);
         assert_eq!(
             "very-long-and-complex-string",
@@ -316,11 +314,10 @@ pub mod tests {
     fn can_retrieve_app_settings_for_production() -> anyhow::Result<()> {
         let crate_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
         let env_file = crate_dir.join("..").join(".env");
-        println!("enf_file: {}", env_file.display());
         dotenvx::from_path(env_file)?;
 
         let settings_dir = crate_dir.join("..").join(SETTINGS_DIR_NAME);
-        let app_settings = retrieve_app_settings(AppEnvironment::Production, settings_dir)?;
+        let app_settings = read_app_settings(AppEnvironment::Production, settings_dir)?;
         assert_eq!(443, app_settings.http_server.port);
         assert_eq!(
             "very-long-and-complex-string",

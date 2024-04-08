@@ -1,11 +1,12 @@
-use crate::helpers::{spawn_test_app, split_response};
+use crate::helpers::{app_settings, spawn_test_app, split_response};
 
 /// ヘルスチェック・ハンドラ
 #[tokio::test]
 #[ignore]
 async fn health_check_works() -> anyhow::Result<()> {
     // 準備
-    let app = spawn_test_app().await?;
+    let settings = app_settings()?;
+    let app = spawn_test_app(settings).await?;
     let client = reqwest::Client::new();
 
     // 実行
@@ -35,7 +36,8 @@ async fn health_check_works() -> anyhow::Result<()> {
 #[ignore]
 async fn not_found_works() -> anyhow::Result<()> {
     // 準備
-    let app = spawn_test_app().await?;
+    let settings = app_settings()?;
+    let app = spawn_test_app(settings).await?;
     let client = reqwest::Client::new();
 
     // 実行

@@ -246,7 +246,7 @@ pub(crate) fn impl_integer_primitive(input: DeriveInput) -> syn::Result<TokenStr
     // 値を検証する文を生成
     let min_token = match range.min {
         Some(min) => quote! {
-            if value < #min {
+            if value < #min as #ty {
                 return ::core::result::Result::Err(
                     DomainError::Validation(format!("{}は{}以上の値を指定してください。", #name, #min).into())
                 );
@@ -256,7 +256,7 @@ pub(crate) fn impl_integer_primitive(input: DeriveInput) -> syn::Result<TokenStr
     };
     let max_token = match range.max {
         Some(max) => quote! {
-            if #max < value {
+            if value > #max as #ty {
                 return ::core::result::Result::Err(
                     DomainError::Validation(format!("{}は{}以下の値を指定してください。", #name, #max).into())
                 );

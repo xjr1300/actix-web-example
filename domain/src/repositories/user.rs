@@ -16,6 +16,13 @@ pub trait UserRepository: Sync + Send {
     /// ユーザーを格納したベクタ
     async fn list(&self) -> DomainResult<Vec<User>>;
 
+    /// ユーザーを取得する。
+    ///
+    /// # 戻り値
+    ///
+    /// ユーザー
+    async fn by_id(&self, user_id: UserId) -> DomainResult<Option<User>>;
+
     /// ユーザーのクレデンシャルを取得する。
     ///
     /// # 引数
@@ -26,6 +33,75 @@ pub trait UserRepository: Sync + Send {
     ///
     /// ユーザーのクレデンシャル
     async fn user_credential(&self, email: EmailAddress) -> DomainResult<Option<UserCredential>>;
+
+    /// ユーザが最後にサインインした日時を更新する。
+    ///
+    /// サインインした日時を現在の日時、最初にサインインに失敗した日時をNULL、そしてサインイン失敗回数を0にする。
+    ///
+    /// # 引数
+    ///
+    /// * `user_id` - ユーザーID
+    ///
+    /// # ユーザーが最後にサインインした日時
+    async fn update_last_sign_in(&self, user_id: UserId) -> DomainResult<Option<OffsetDateTime>>;
+
+    /// 最初にサインインに失敗した日時を保存する。
+    ///
+    /// サインインに失敗した回数は1になる。
+    ///
+    /// # 引数
+    ///
+    /// * `user_id` - ユーザーID
+    ///
+    /// # 戻り値
+    ///
+    /// ユーザーのクレデンシャル
+    async fn record_first_sign_in_failed(
+        &self,
+        user_id: UserId,
+    ) -> DomainResult<Option<UserCredential>>;
+
+    /// サインイン失敗回数をインクリメントする。
+    ///
+    /// # 引数
+    ///
+    /// * `user_id` - ユーザーID
+    ///
+    /// # 戻り値
+    ///
+    /// ユーザーのクレデンシャル
+    async fn increment_number_of_sign_in_failures(
+        &self,
+        user_id: UserId,
+    ) -> DomainResult<Option<UserCredential>>;
+
+    /// ユーザーのアカウントをロックする。
+    ///
+    /// # 引数
+    ///
+    /// * `user_id` - ユーザーID
+    async fn lock_user_account(&self, user_id: UserId) -> DomainResult<()>;
+
+    /// ユーザーのアカウントをアンロックする。
+    ///
+    /// # 引数
+    ///
+    /// * `user_id` - ユーザーID
+    async fn unlock_user_account(&self, user_id: UserId) -> DomainResult<()>;
+
+    /// 最初にサインインに失敗した日時をNULL、サインイン失敗回数を0にする。
+    ///
+    /// # 引数
+    ///
+    /// * `user_id` - ユーザーID
+    ///
+    /// # 戻り値
+    ///
+    /// ユーザーのクレデンシャル
+    async fn clear_sign_in_failed_history(
+        &self,
+        user_id: UserId,
+    ) -> DomainResult<Option<UserCredential>>;
 
     /// ユーザーを登録する。
     ///
@@ -109,6 +185,7 @@ pub struct SignUpOutput {
 }
 
 /// ユーザークレデンシャル
+#[derive(Debug, Clone)]
 pub struct UserCredential {
     /// ユーザーID
     pub user_id: UserId,

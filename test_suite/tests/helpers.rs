@@ -2,6 +2,8 @@ use std::net::TcpListener;
 use std::path::Path;
 
 use anyhow::Context as _;
+use deadpool_redis::Pool as RedisPool;
+use infra::repositories::redis::token::RedisTokenRepository;
 use once_cell::sync::Lazy;
 use reqwest::header::{HeaderValue, CONTENT_TYPE};
 use secrecy::{ExposeSecret, SecretString};
@@ -9,13 +11,14 @@ use sqlx::{Connection as _, Executor as _, PgConnection, PgPool};
 use uuid::Uuid;
 
 use configurations::settings::{
-    retrieve_app_settings, AppEnvironment, AppSettings, DatabaseSettings, ENV_APP_ENVIRONMENT,
+    read_app_settings, AppEnvironment, AppSettings, DatabaseSettings, ENV_APP_ENVIRONMENT,
     SETTINGS_DIR_NAME,
 };
 use domain::models::primitives::*;
 use domain::models::user::{UserId, UserPermission, UserPermissionCode, UserPermissionName};
-use domain::repositories::user::{SignUpInput, SignUpInputBuilder};
-use domain::repositories::user::{SignUpOutput, UserRepository};
+use domain::repositories::token::TokenContent;
+use domain::repositories::token::TokenRepository;
+use domain::repositories::user::{SignUpInput, SignUpInputBuilder, SignUpOutput, UserRepository};
 use infra::repositories::postgres::user::PgUserRepository;
 use infra::routes::accounts::SignUpReqBody;
 use infra::RequestContext;
@@ -66,7 +69,9 @@ pub struct TestApp {
     /// アプリの設定
     pub settings: AppSettings,
     /// PostgreSQL接続プール
-    pub pool: PgPool,
+    pub pg_pool: PgPool,
+    /// Redis接続プール
+    pub redis_pool: RedisPool,
 }
 
 impl TestApp {
@@ -111,30 +116,41 @@ impl TestApp {
     }
 
     pub async fn register_user(&self, input: SignUpInput) -> anyhow::Result<SignUpOutput> {
-        let repo = PgUserRepository::new(self.pool.clone());
+        let repo = PgUserRepository::new(self.pg_pool.clone());
 
         repo.create(input).await.map_err(|e| e.into())
     }
+
+    /// トークンを元にRedisに登録されている値を取得する。
+    pub async fn retrieve_token_content(&self, token: &SecretString) -> Option<TokenContent> {
+        let repo = RedisTokenRepository::new(self.redis_pool.clone());
+        repo.retrieve_token_content(token).await.unwrap()
+    }
 }
 
-/// 統合テスト用のHTTPサーバーを起動する。
-///
-/// # 戻り値
-///
-/// 統合テスト用アプリ
-pub async fn spawn_test_app() -> anyhow::Result<TestApp> {
-    dotenvx::dotenv()?;
-    Lazy::force(&TRACING);
-
+pub fn app_settings() -> anyhow::Result<AppSettings> {
     // 環境変数からアプリケーションの動作環境を取得
     let app_env: AppEnvironment = std::env::var(ENV_APP_ENVIRONMENT)
         .unwrap_or_else(|_| String::from("development"))
         .into();
-
-    // アプリケーション設定を取得
+    // 環境変数や設定ファイルからアプリケーション設定を読み込み
     let dir = Path::new(env!("CARGO_MANIFEST_DIR"));
     let settings_dir = dir.join("..").join(SETTINGS_DIR_NAME);
-    let mut settings = retrieve_app_settings(app_env, settings_dir)?;
+    read_app_settings(app_env, settings_dir)
+}
+
+/// 統合テスト用のHTTPサーバーを起動する。
+///
+/// # 引数
+///
+/// * `settings` - アプリケーション設定
+///
+/// # 戻り値
+///
+/// 統合テスト用アプリ
+pub async fn spawn_test_app(mut settings: AppSettings) -> anyhow::Result<TestApp> {
+    dotenvx::dotenv()?;
+    Lazy::force(&TRACING);
 
     // テスト用のデータベースの名前を設定
     settings.database.name = format!("awe_test_{}", Uuid::new_v4()).replace('-', "_");
@@ -162,7 +178,8 @@ pub async fn spawn_test_app() -> anyhow::Result<TestApp> {
     Ok(TestApp {
         root_uri: format!("http://localhost:{}", port),
         settings,
-        pool: pg_pool,
+        pg_pool,
+        redis_pool,
     })
 }
 

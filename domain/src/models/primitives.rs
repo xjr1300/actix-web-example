@@ -8,7 +8,7 @@ use regex::Regex;
 use secrecy::{ExposeSecret as _, SecretString};
 use uuid::Uuid;
 
-use macros::{OptionalStringPrimitive, PrimitiveDisplay, StringPrimitive};
+use macros::{IntegerPrimitive, OptionalStringPrimitive, PrimitiveDisplay, StringPrimitive};
 use validator::Validate;
 
 use crate::{DomainError, DomainResult};
@@ -318,6 +318,14 @@ pub struct OptionalMobilePhoneNumber(Option<String>);
 #[derive(Debug, Clone, PartialEq, Eq, Hash, OptionalStringPrimitive)]
 #[primitive(name = "備考", max = 400)]
 pub struct OptionalRemarks(Option<String>);
+
+/// サインイン失敗回数
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Validate, IntegerPrimitive)]
+#[primitive(name = "サインイン失敗回数")]
+pub struct NumberOfSignInFailures {
+    #[validate(range(min = 0))]
+    pub value: i16,
+}
 
 #[cfg(test)]
 mod tests {

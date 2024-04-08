@@ -1,7 +1,6 @@
 use async_trait::async_trait;
 use enum_display::EnumDisplay;
 use secrecy::SecretString;
-use time::OffsetDateTime;
 
 use crate::models::user::UserId;
 use crate::{DomainError, DomainResult};
@@ -14,10 +13,10 @@ pub trait TokenRepository: Sync + Send {
     /// # 引数
     ///
     /// * `tokens` - トークンペア
-    async fn register_token_pair(
+    async fn register_token_pair<'a>(
         &self,
         user_id: UserId,
-        tokens: &TokenPairWithExpiration,
+        tokens: TokenPairWithTtl<'a>,
     ) -> DomainResult<()>;
 
     /// トークンからユーザーIDとトークンの種類を取得する。
@@ -35,19 +34,20 @@ pub trait TokenRepository: Sync + Send {
     ) -> DomainResult<Option<TokenContent>>;
 }
 
-/// アクセストークンとリフレッシュトークンと、それぞれの有効期限
-pub struct TokenPairWithExpiration {
+/// アクセストークン及びリフレッシュトークンとそれぞれの生存
+pub struct TokenPairWithTtl<'a> {
     /// アクセストークン
-    pub access: SecretString,
-    /// アクセストークンの有効期限
-    pub access_expiration: OffsetDateTime,
+    pub access: &'a SecretString,
+    /// アクセストークンの生存期間（秒）
+    pub access_ttl: u64,
     /// リフレッシュトークン
-    pub refresh: SecretString,
-    /// リフレッシュトークンの有効期限
-    pub refresh_expiration: OffsetDateTime,
+    pub refresh: &'a SecretString,
+    /// リフレッシュトークンの生存期間（秒）
+    pub refresh_ttl: u64,
 }
 
 /// トークンが保有している値
+#[derive(Debug, Clone, Copy)]
 pub struct TokenContent {
     /// ユーザーID
     pub user_id: UserId,
@@ -56,7 +56,8 @@ pub struct TokenContent {
 }
 
 /// トークンの種類
-#[derive(Debug, Clone, Copy, EnumDisplay)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EnumDisplay)]
+#[enum_display(case = "Lower")]
 pub enum TokenType {
     /// アクセストークン
     Access,

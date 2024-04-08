@@ -8,8 +8,6 @@ mod primitive;
 use primitive::{impl_integer_primitive, impl_primitive_display, impl_string_primitive};
 mod optional_string_primitive;
 use optional_string_primitive::impl_optional_string_primitive;
-mod getter;
-use getter::impl_getter;
 mod builder;
 use builder::impl_builder;
 
@@ -116,45 +114,6 @@ pub fn derive_optional_string_primitive(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
 
     match impl_optional_string_primitive(input) {
-        Ok(token_stream) => TokenStream::from(token_stream),
-        Err(err) => TokenStream::from(err.into_compile_error()),
-    }
-}
-
-/// ゲッター導出マクロ
-///
-/// ```text
-/// #[derive(Getter)]
-/// pub struct Foo {
-///     #[getter(ret="val")]
-///     a: i32,
-///     #[getter(ret="ref")]
-///     b: PathBuf,
-///     #[getter(ret="ref", rty="&str")]
-///     c: String,
-/// }
-/// ```
-///
-/// 上記構造体から次を導出する。
-///
-/// ```text
-/// impl Foo {
-///     pub fn a(&self) -> i32 {
-///         self.a
-///     }
-///     pub fn b(&self) -> &PathBuf {
-///          &self.b
-///     }
-///     pub fn c(&self) -> &str {
-///        &self.c
-///     }
-/// }
-/// ```
-#[proc_macro_derive(Getter, attributes(getter))]
-pub fn derive_getter(input: TokenStream) -> TokenStream {
-    let input = parse_macro_input!(input as DeriveInput);
-
-    match impl_getter(input) {
         Ok(token_stream) => TokenStream::from(token_stream),
         Err(err) => TokenStream::from(err.into_compile_error()),
     }
