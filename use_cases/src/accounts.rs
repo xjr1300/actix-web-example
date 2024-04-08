@@ -1,8 +1,9 @@
+use secrecy::SecretString;
 use time::{Duration, OffsetDateTime};
 
 use domain::models::primitives::*;
 use domain::models::user::{User, UserId, UserPermissionCode};
-use domain::repositories::token::TokenPairWithExpiration;
+use domain::repositories::token::{TokenPairWithTtl, TokenRepository};
 use domain::repositories::user::{SignUpInputBuilder, SignUpOutput, UserRepository};
 use macros::Builder;
 
@@ -95,24 +96,25 @@ impl From<SignUpOutput> for SignUpUseCaseOutput {
 ///
 /// # 引数
 ///
-/// * `user` - 登録するユーザー
-/// * `pepper` - 未加工なパスワードに付与するペッパー
-/// * `repository` - ユーザーリポジトリ
+/// * `password_settings` - パスワード設定
+/// * `user_repository` - ユーザーリポジトリ
+/// * `input` - サインアップユースケース入力
 ///
 /// # 戻り値
 ///
 /// * 登録したユーザー
 #[tracing::instrument(
-    name = "sign up use case", skip(input, repository),
+    name = "sign up use case", skip(password_settings, user_repository, input),
     fields(user.email = %input.email)
 )]
 pub async fn sign_up(
-    settings: &PasswordSettings,
-    repository: impl UserRepository,
+    password_settings: &PasswordSettings,
+    user_repository: impl UserRepository,
     input: SignUpUseCaseInput,
 ) -> UseCaseResult<SignUpUseCaseOutput> {
     let id = UserId::default();
-    let password = generate_phc_string(&input.password, settings).map_err(UseCaseError::from)?;
+    let password =
+        generate_phc_string(&input.password, password_settings).map_err(UseCaseError::from)?;
 
     let input = SignUpInputBuilder::new()
         .id(id)
@@ -131,7 +133,7 @@ pub async fn sign_up(
         .map_err(|e| UseCaseError::domain_rule(e.to_string()))?;
 
     // ユーザーを登録
-    match repository.create(input).await {
+    match user_repository.create(input).await {
         Ok(inserted_user) => Ok(inserted_user.into()),
         Err(e) => {
             let message = e.to_string();
@@ -165,7 +167,8 @@ pub async fn sign_up(
 ///
 /// * `password_settings` - パスワード設定
 /// * `authorization_settings` - 認証設定
-/// * `repository` - ユーザーリポジトリ
+/// * `user_repository` - ユーザーリポジトリ
+/// * `token_repository` - トークンリポジトリ
 /// * `input` - サインインユースケース入力
 ///
 /// # 戻り値
@@ -174,15 +177,16 @@ pub async fn sign_up(
 pub async fn sign_in(
     password_settings: &PasswordSettings,
     authorization_settings: &AuthorizationSettings,
-    repository: impl UserRepository,
+    user_repository: impl UserRepository,
+    token_repository: impl TokenRepository,
     input: SignInUseCaseInput,
-) -> UseCaseResult<TokenPairWithExpiration> {
+) -> UseCaseResult<SignInUseCaseOutput> {
     // 不許可／未認証エラー
     let unauthorized_error =
         UseCaseError::unauthorized("Eメールアドレスまたはパスワードが間違っています。");
 
     // ユーザーのクレデンシャルを取得
-    let credential = repository
+    let credential = user_repository
         .user_credential(input.email)
         .await
         .map_err(UseCaseError::from)?;
@@ -205,7 +209,7 @@ pub async fn sign_in(
         return Err(unauthorized_error);
     }
 
-    // アクセス及びリフレッシュトークンを生成
+    // アクセストークン及びリフレッシュトークンを生成
     let dt = OffsetDateTime::now_utc();
     let access_expiration =
         dt + Duration::seconds(authorization_settings.access_token_seconds as i64);
@@ -218,7 +222,18 @@ pub async fn sign_in(
         &authorization_settings.jwt_token_secret,
     )?;
 
-    Ok(TokenPairWithExpiration {
+    // アクセストークン及びリフレッシュトークンをリポジトリに保存
+    let token_with_ttls = TokenPairWithTtl {
+        access: &tokens.access,
+        access_ttl: authorization_settings.access_token_seconds,
+        refresh: &tokens.refresh,
+        refresh_ttl: authorization_settings.refresh_token_seconds,
+    };
+    token_repository
+        .register_token_pair(credential.user_id, token_with_ttls)
+        .await?;
+
+    Ok(SignInUseCaseOutput {
         access: tokens.access,
         access_expiration,
         refresh: tokens.refresh,
@@ -232,6 +247,18 @@ pub struct SignInUseCaseInput {
     pub email: EmailAddress,
     /// 加工していないパスワード
     pub password: RawPassword,
+}
+
+/// サインインユースケース出力
+pub struct SignInUseCaseOutput {
+    /// アクセストークン
+    pub access: SecretString,
+    /// アクセストークンの有効期限
+    pub access_expiration: OffsetDateTime,
+    /// リフレッシュトークン
+    pub refresh: SecretString,
+    /// リフレッシュトークンの有効期限
+    pub refresh_expiration: OffsetDateTime,
 }
 
 /// JWTトークンの正規表現

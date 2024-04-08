@@ -6,12 +6,10 @@ use secrecy::{ExposeSecret as _, SecretString};
 use sha2::{Digest, Sha256};
 
 use domain::models::user::UserId;
-use domain::repositories::token::{
-    TokenContent, TokenPairWithExpiration, TokenRepository, TokenType,
-};
+use domain::repositories::token::{TokenContent, TokenPairWithTtl, TokenRepository, TokenType};
 use domain::{DomainError, DomainResult};
 
-/// Redisトークンリポジトリい
+/// Redisトークンリポジトリ
 pub struct RedisTokenRepository {
     /// Redis接続プール
     pool: RedisPool,
@@ -51,19 +49,24 @@ impl TokenRepository for RedisTokenRepository {
     /// # 引数
     ///
     /// * `tokens` - トークンペア
-    async fn register_token_pair(
+    async fn register_token_pair<'a>(
         &self,
         user_id: UserId,
-        token_pair: &TokenPairWithExpiration,
+        token_pair: TokenPairWithTtl<'a>,
     ) -> DomainResult<()> {
-        let access_key = generate_key(&token_pair.access);
+        let access_key = generate_key(token_pair.access);
         let access_value = generate_value(user_id, TokenType::Access);
-        let refresh_key = generate_key(&token_pair.refresh);
+        let refresh_key = generate_key(token_pair.refresh);
         let refresh_value = generate_value(user_id, TokenType::Refresh);
         let mut conn = self.connection().await?;
-        // TODO: 有効期限を設定してキーと値を保存するように修正すること。
-        store(&mut conn, &access_key, &access_value).await?;
-        store(&mut conn, &refresh_key, &refresh_value).await?;
+        store(&mut conn, &access_key, &access_value, token_pair.access_ttl).await?;
+        store(
+            &mut conn,
+            &refresh_key,
+            &refresh_value,
+            token_pair.refresh_ttl,
+        )
+        .await?;
 
         Ok(())
     }
@@ -118,8 +121,15 @@ fn generate_value(user_id: UserId, token_type: TokenType) -> String {
 }
 
 /// Redisにキーと値を保存する。
-async fn store(conn: &mut RedisConnection, key: &str, value: &str) -> DomainResult<()> {
-    conn.set(key, value).await.map_err(|e| {
+///
+/// # 引数
+///
+/// * `conn` - Redisコネクション
+/// * `key` - キー
+/// * `value` - 値
+/// * `ttl` - 生存期間（秒）
+async fn store(conn: &mut RedisConnection, key: &str, value: &str, ttl: u64) -> DomainResult<()> {
+    conn.set_ex(key, value, ttl).await.map_err(|e| {
         tracing::error!("{} {}({}:{}", STORE_ERROR, e, file!(), line!());
         DomainError::Repository(anyhow!("{}", STORE_ERROR))
     })

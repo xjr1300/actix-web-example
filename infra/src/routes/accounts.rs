@@ -7,8 +7,9 @@ use uuid::Uuid;
 
 use domain::models::primitives::*;
 use domain::models::user::{User, UserPermissionCode};
-use domain::repositories::token::TokenPairWithExpiration;
-use use_cases::accounts::{SignInUseCaseInput, SignUpUseCaseInputBuilder, SignUpUseCaseOutput};
+use use_cases::accounts::{
+    SignInUseCaseInput, SignInUseCaseOutput, SignUpUseCaseInputBuilder, SignUpUseCaseOutput,
+};
 use use_cases::UseCaseError;
 
 use crate::routes::{ProcessRequestError, ProcessRequestResult};
@@ -27,9 +28,9 @@ pub async fn sign_up(
     context: web::Data<RequestContext>,
     request_body: web::Json<SignUpReqBody>,
 ) -> ProcessRequestResult<HttpResponse> {
-    let repository = context.user_repository();
-    let input = request_body.0;
     let password_settings = &context.password_settings;
+    let user_repository = context.user_repository();
+    let input = request_body.0;
 
     let email = EmailAddress::new(input.email).map_err(ProcessRequestError::from)?;
     let user_permission_code = UserPermissionCode::new(input.user_permission_code);
@@ -59,7 +60,7 @@ pub async fn sign_up(
         .build()
         .map_err(|e| UseCaseError::domain_rule(e.to_string()))?;
 
-    use_cases::accounts::sign_up(password_settings, repository, input)
+    use_cases::accounts::sign_up(password_settings, user_repository, input)
         .await
         .map(|user| HttpResponse::Ok().json(SignUpResBody::from(user)))
         .map_err(|e| e.into())
@@ -154,15 +155,21 @@ pub async fn sign_in(
     let http_server_settings = &context.http_server_settings;
     let password_settings = &context.password_settings;
     let authorization_settings = &context.authorization_settings;
-    let repository = context.user_repository();
+    let user_repository = context.user_repository();
+    let token_repository = context.token_repository();
     let email = EmailAddress::new(request_body.0.email).map_err(ProcessRequestError::from)?;
     let password = RawPassword::new(request_body.0.password).map_err(ProcessRequestError::from)?;
     let input = SignInUseCaseInput { email, password };
 
-    let output =
-        use_cases::accounts::sign_in(password_settings, authorization_settings, repository, input)
-            .await
-            .map_err(ProcessRequestError::from)?;
+    let output = use_cases::accounts::sign_in(
+        password_settings,
+        authorization_settings,
+        user_repository,
+        token_repository,
+        input,
+    )
+    .await
+    .map_err(ProcessRequestError::from)?;
 
     // レスポンスヘッダに、クッキーにアクセス及びリクエストトークンを設定する`Set-Cookie`を追加する。
     let access_cookie = generate_token_cookie(
@@ -218,8 +225,8 @@ pub struct SignInResBody {
     pub refresh: String,
 }
 
-impl From<&TokenPairWithExpiration> for SignInResBody {
-    fn from(value: &TokenPairWithExpiration) -> Self {
+impl From<&SignInUseCaseOutput> for SignInResBody {
+    fn from(value: &SignInUseCaseOutput) -> Self {
         Self {
             access: value.access.expose_secret().to_string(),
             refresh: value.refresh.expose_secret().to_string(),
