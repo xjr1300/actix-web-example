@@ -672,10 +672,41 @@ async fn the_user_account_was_locked_after_the_user_failed_to_sign_in_specified_
     Ok(())
 }
 
-/// # サインイン統合テストリスト
-///
-/// * `Redis`に登録されたアクセス及びリフレッシュトークンが、有効期限を超えたときに削除されている
-///   ことを確認
+/// `Redis`に登録されたアクセス及びリフレッシュトークンが、有効期限を超えたときに削除されていることを確認
+#[tokio::test]
+#[ignore]
+async fn the_tokens_were_removed_from_the_redis_when_specified_times_passed() -> anyhow::Result<()>
+{
+    // 準備
+    let mut settings = app_settings()?;
+    settings.authorization.access_token_seconds = 1;
+    settings.authorization.refresh_token_seconds = 2;
+    let app = spawn_test_app(settings).await?;
+    let json = sign_up_request_body_json();
+    let body = sign_up_request_body(&json);
+    let sign_in_input = sign_up_input(body.clone(), &app.settings.password);
+    let _ = app.register_user(sign_in_input.clone()).await?;
+
+    // 実行
+    let response = app
+        .sign_in(body.email.clone(), body.password.clone())
+        .await?;
+    let ResponseParts { body, .. } = split_response(response).await?;
+    let tokens: SignInResBody = serde_json::from_str(&body)?;
+    // 2.5秒スリープ
+    tokio::time::sleep(tokio::time::Duration::from_millis(2500)).await;
+    // Redisからアクセストークンのコンテンツを取得を試みる
+    let access_token = SecretString::new(tokens.access.clone());
+    let access_content = app.retrieve_token_content(&access_token).await;
+    let refresh_token = SecretString::new(tokens.refresh.clone());
+    let refresh_token = app.retrieve_token_content(&refresh_token).await;
+
+    // 検証
+    assert!(access_content.is_none());
+    assert!(refresh_token.is_none());
+
+    Ok(())
+}
 
 /// データベースに登録したユーザーをリストできることを確認
 #[tokio::test]
