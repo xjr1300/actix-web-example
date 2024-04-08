@@ -163,6 +163,27 @@ pub async fn sign_up(
 
 /// ユーザーがサインインする。
 ///
+/// ユーザーが最初にサインインに失敗した日時: last_failed_at
+/// 現在の日時: now_dt
+/// ユーザーのアカウントをロックするサインイン失敗回数: number_of_failures
+/// 上記サインイン失敗回数をカウントする期間（秒）: attempting_seconds
+///
+/// 最初にサインインに失敗した日時か記録されていない場合、または最初にサインインに失敗した日時に失敗回数を
+/// カウントする期間を足した日時が、現在の日時よりも過去の場合は、最初のサインインの失敗として記録
+///
+/// * last_failed_at.is_none()
+/// * last_failed_at + attempting_seconds < now_dt
+///
+/// 最初にサインインに失敗した日時に失敗回数をカウントする期間を足した日時が、現在の日時より未来の場合は、
+/// サインイン失敗回数をインクリメント
+///
+/// * last_failed_at + attempting_seconds >= now_dt
+///
+/// 上記の結果、サインイン失敗回数がユーザーのアカウントをロックするサインイン失敗回数に達した場合は、
+/// ユーザーのアカウントをロック
+///
+/// * サインイン失敗回数 >= number_of_failures
+///
 /// # 引数
 ///
 /// * `password_settings` - パスワード設定
@@ -177,16 +198,21 @@ pub async fn sign_up(
 pub async fn sign_in(
     password_settings: &PasswordSettings,
     authorization_settings: &AuthorizationSettings,
-    user_repository: impl UserRepository,
-    token_repository: impl TokenRepository,
+    user_repo: impl UserRepository,
+    token_repo: impl TokenRepository,
     input: SignInUseCaseInput,
 ) -> UseCaseResult<SignInUseCaseOutput> {
+    // 現在の日時
+    let now_dt = OffsetDateTime::now_utc();
     // 不許可／未認証エラー
     let unauthorized_error =
         UseCaseError::unauthorized("Eメールアドレスまたはパスワードが間違っています。");
+    // サイン履歴保存エラー
+    let history_record_error =
+        UseCaseError::repository("ユーザーのサインイン履歴の保存に失敗しました。");
 
     // ユーザーのクレデンシャルを取得
-    let credential = user_repository
+    let credential = user_repo
         .user_credential(input.email)
         .await
         .map_err(UseCaseError::from)?;
@@ -206,17 +232,41 @@ pub async fn sign_in(
         &password_settings.pepper,
         &credential.password,
     )? {
-        user_repository
-            .record_first_sign_in_failed(credential.user_id)
-            .await
-            .map_err(|_| {
-                UseCaseError::repository("ユーザーのサインイン履歴の保存に失敗しました。")
-            })?;
+        // ユーザーの最初にサインインに失敗した日時が記録されていない
+        // または最初にサインインに失敗した日時に失敗回数をカウントする期間を足した日時が、現在の日時よりも過去
+        let latest_credential = if credential.attempted_at.is_none()
+            || credential.attempted_at.unwrap()
+                + Duration::seconds(authorization_settings.attempting_seconds.into())
+                < now_dt
+        {
+            // 最初のサインインの失敗として記録
+            user_repo
+                .record_first_sign_in_failed(credential.user_id)
+                .await
+                .map_err(|_| history_record_error.clone())?
+        } else {
+            // サインイン失敗回数をインクリメント
+            user_repo
+                .increment_number_of_sign_in_failures(credential.user_id)
+                .await
+                .map_err(|_| history_record_error.clone())?
+        };
+        // サインイン失敗回数がユーザーのアカウントをロックする失敗回数に達した場合、
+        // ユーザーのアカウントをロック
+        let latest_credential = latest_credential.unwrap();
+        if authorization_settings.number_of_failures <= latest_credential.number_of_failures as u16
+        {
+            user_repo
+                .lock_user_account(latest_credential.user_id)
+                .await
+                .map_err(|_| history_record_error)?;
+        }
+
         return Err(unauthorized_error);
     }
 
     // 最後にサインインした日時を更新
-    user_repository
+    user_repo
         .update_last_sign_in(credential.user_id)
         .await
         .map_err(UseCaseError::from)?;
@@ -241,7 +291,7 @@ pub async fn sign_in(
         refresh: &tokens.refresh,
         refresh_ttl: authorization_settings.refresh_token_seconds,
     };
-    token_repository
+    token_repo
         .register_token_pair(credential.user_id, token_with_ttls)
         .await?;
 

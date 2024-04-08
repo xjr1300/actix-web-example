@@ -14,7 +14,8 @@ use crate::repositories::postgres::{commit_transaction, PgRepository};
 /// PostgreSQLユーザーリポジトリ
 pub type PgUserRepository = PgRepository<User>;
 
-type PgQueryAs<'a, T> = sqlx::query::QueryAs<'a, sqlx::Postgres, T, sqlx::postgres::PgArguments>;
+type PgQueryAs<'q, T> = sqlx::query::QueryAs<'q, sqlx::Postgres, T, sqlx::postgres::PgArguments>;
+type PgQuery<'q> = sqlx::query::Query<'q, sqlx::Postgres, sqlx::postgres::PgArguments>;
 
 #[async_trait]
 impl UserRepository for PgUserRepository {
@@ -74,6 +75,8 @@ impl UserRepository for PgUserRepository {
 
     /// ユーザーが最後にサインインした日時を更新する。
     ///
+    /// サインインした日時を現在の日時、最初にサインインに失敗した日時をNULL、そしてサインイン失敗回数を0にする。
+    ///
     /// # 引数
     ///
     /// * `user_id` - ユーザーID
@@ -113,6 +116,70 @@ impl UserRepository for PgUserRepository {
         commit_transaction(tx).await?;
 
         Ok(row.map(|r| r.into()))
+    }
+
+    /// サインイン失敗回数をインクリメントする。
+    ///
+    /// # 引数
+    ///
+    /// * `user_id` - ユーザーID
+    ///
+    /// # 戻り値
+    ///
+    /// インクリメント後のサインイン失敗回数
+    async fn increment_number_of_sign_in_failures(
+        &self,
+        user_id: UserId,
+    ) -> DomainResult<Option<UserCredential>> {
+        let mut tx = self.begin().await?;
+        let row = increment_number_of_sign_in_failures_query(user_id)
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(|e| {
+                tracing::error!("{} ({}:{})", e, file!(), line!());
+                DomainError::Repository(e.into())
+            })?;
+        commit_transaction(tx).await?;
+
+        Ok(row.map(|r| r.into()))
+    }
+
+    /// ユーザーのアカウントをロックする。
+    ///
+    /// # 引数
+    ///
+    /// * `user_id` - ユーザーID
+    async fn lock_user_account(&self, user_id: UserId) -> DomainResult<()> {
+        let mut tx = self.begin().await?;
+        let _ = set_active_query(user_id, false)
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(|e| {
+                tracing::error!("{} ({}:{})", e, file!(), line!());
+                DomainError::Repository(e.into())
+            })?;
+        commit_transaction(tx).await?;
+
+        Ok(())
+    }
+
+    /// ユーザーのアカウントをアンロックする。
+    ///
+    /// # 引数
+    ///
+    /// * `user_id` - ユーザーID
+    async fn unlock_user_account(&self, user_id: UserId) -> DomainResult<()> {
+        let mut tx = self.begin().await?;
+        let _ = set_active_query(user_id, true)
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(|e| {
+                tracing::error!("{} ({}:{})", e, file!(), line!());
+                DomainError::Repository(e.into())
+            })?;
+        commit_transaction(tx).await?;
+
+        Ok(())
     }
 
     /// 最初にサインインに失敗した日時をNULL、サインイン失敗回数を0にする。
@@ -212,7 +279,7 @@ impl From<RetrievedUserRow> for User {
 /// # 戻り値
 ///
 /// ユーザーの一覧を取得するクエリ
-pub fn list_users_query<'a>() -> PgQueryAs<'a, RetrievedUserRow> {
+pub fn list_users_query<'q>() -> PgQueryAs<'q, RetrievedUserRow> {
     sqlx::query_as::<Postgres, RetrievedUserRow>(
         r#"
         SELECT
@@ -237,7 +304,7 @@ pub fn list_users_query<'a>() -> PgQueryAs<'a, RetrievedUserRow> {
 /// # 戻り値
 ///
 /// ユーザーIDを元にユーザーを取得するクエリ
-pub fn user_by_id_query<'a>(user_id: UserId) -> PgQueryAs<'a, RetrievedUserRow> {
+pub fn user_by_id_query<'q>(user_id: UserId) -> PgQueryAs<'q, RetrievedUserRow> {
     sqlx::query_as::<Postgres, RetrievedUserRow>(
         r#"
         SELECT
@@ -289,7 +356,7 @@ impl From<UserCredentialRow> for UserCredential {
 /// # 戻り値
 ///
 /// ユーザークレデンシャルを取得するクエリ
-pub fn user_credential_query<'a>(email: EmailAddress) -> PgQueryAs<'a, UserCredentialRow> {
+pub fn user_credential_query<'q>(email: EmailAddress) -> PgQueryAs<'q, UserCredentialRow> {
     sqlx::query_as::<Postgres, UserCredentialRow>(
         r#"
         SELECT
@@ -303,7 +370,7 @@ pub fn user_credential_query<'a>(email: EmailAddress) -> PgQueryAs<'a, UserCrede
     .bind(email.value)
 }
 
-/// 最後にサインインした日時を更新するクエリを生成する。
+/// サインインした日時を現在の日時、最初にサインインに失敗した日時をNULL、そしてサインイン失敗回数を0にするクエリを生成する。
 ///
 /// # 引数
 ///
@@ -312,11 +379,15 @@ pub fn user_credential_query<'a>(email: EmailAddress) -> PgQueryAs<'a, UserCrede
 /// # 戻り値
 ///
 /// 更新日時
-pub fn update_last_sign_in_at_query<'a>(user_id: UserId) -> PgQueryAs<'a, LastSignInAtRow> {
+pub fn update_last_sign_in_at_query<'q>(user_id: UserId) -> PgQueryAs<'q, LastSignInAtRow> {
     sqlx::query_as::<Postgres, LastSignInAtRow>(
         r#"
-        UPDATE users
-            SET last_sign_in_at = CURRENT_TIMESTAMP
+        UPDATE
+            users
+        SET
+            last_sign_in_at = CURRENT_TIMESTAMP,
+            sign_in_attempted_at = NULL,
+            number_of_sign_in_failures = 0
         WHERE
             id = $1
         RETURNING
@@ -335,7 +406,7 @@ pub fn update_last_sign_in_at_query<'a>(user_id: UserId) -> PgQueryAs<'a, LastSi
 /// # 戻り値
 ///
 /// 最初にサインインに失敗したことを保存するクエリ
-pub fn record_first_sign_in_failed_query<'a>(user_id: UserId) -> PgQueryAs<'a, UserCredentialRow> {
+pub fn record_first_sign_in_failed_query<'q>(user_id: UserId) -> PgQueryAs<'q, UserCredentialRow> {
     sqlx::query_as::<Postgres, UserCredentialRow>(
         r#"
         UPDATE
@@ -352,6 +423,58 @@ pub fn record_first_sign_in_failed_query<'a>(user_id: UserId) -> PgQueryAs<'a, U
     .bind(user_id.value)
 }
 
+/// サインイン失敗回数をインクリメントするクエリを生成する。
+///
+/// # 引数
+///
+/// * `user_id` - ユーザーID
+///
+/// # 戻り値
+///
+/// サインイン失敗回数をインクリメントするクエリ
+pub fn increment_number_of_sign_in_failures_query<'q>(
+    user_id: UserId,
+) -> PgQueryAs<'q, UserCredentialRow> {
+    sqlx::query_as::<Postgres, UserCredentialRow>(
+        r#"
+        UPDATE
+            users
+        SET
+            number_of_sign_in_failures = number_of_sign_in_failures + 1
+        WHERE
+            id = $1
+        RETURNING
+            id, email, password, active, sign_in_attempted_at, number_of_sign_in_failures
+        "#,
+    )
+    .bind(user_id.value)
+}
+
+/// アクティブフラグを更新するクエリを生成する。
+///
+/// # 引数
+///
+/// * `user_id` - ユーザーID
+/// * `active` - アクティブフラグ
+///
+/// # 戻り値
+///
+/// アクティブフラグを更新するクエリ
+pub fn set_active_query<'q>(user_id: UserId, active: bool) -> PgQuery<'q> {
+    sqlx::query::<Postgres>(
+        r#"
+        UPDATE
+            users
+        SET
+            active = $1
+        WHERE
+            id = $2
+        "#,
+    )
+    .bind(active)
+    .bind(user_id.value)
+}
+
 /// 最初にサインインに失敗した日時をNULL、サインイン失敗回数を0にするクエリを生成する。
 ///
 /// # 引数
@@ -361,7 +484,7 @@ pub fn record_first_sign_in_failed_query<'a>(user_id: UserId) -> PgQueryAs<'a, U
 /// # 戻り値
 ///
 /// 最初にサインインに失敗したことを保存するクエリ
-pub fn clear_sign_in_failed_history_query<'a>(user_id: UserId) -> PgQueryAs<'a, UserCredentialRow> {
+pub fn clear_sign_in_failed_history_query<'q>(user_id: UserId) -> PgQueryAs<'q, UserCredentialRow> {
     sqlx::query_as::<Postgres, UserCredentialRow>(
         r#"
         UPDATE
@@ -431,7 +554,7 @@ impl From<InsertedUserRow> for SignUpOutput {
 /// # 戻り値
 ///
 /// ユーザーをデータベースに登録するクエリ
-pub fn insert_user_query<'a>(user: SignUpInput) -> PgQueryAs<'a, InsertedUserRow> {
+pub fn insert_user_query<'q>(user: SignUpInput) -> PgQueryAs<'q, InsertedUserRow> {
     let password = user.password.value.expose_secret().to_string();
     let fixed_phone_number = user.fixed_phone_number.owned_value();
     let mobile_phone_number = user.mobile_phone_number.owned_value();

@@ -21,7 +21,7 @@ pub struct AuthorizationSettings {
     /// ユーザーのサインインの試行を許可する期間（秒）
     pub attempting_seconds: u32,
     /// ユーザーのアカウントをロックするまでのサインイン失敗回数
-    pub number_of_failures: u8,
+    pub number_of_failures: u16,
     /// JWTトークンを生成するときの秘密鍵
     pub jwt_token_secret: SecretString,
     /// アクセストークンの有効期限（秒）

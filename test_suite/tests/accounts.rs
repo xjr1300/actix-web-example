@@ -9,7 +9,7 @@ use secrecy::SecretString;
 use time::{Duration, OffsetDateTime};
 
 use domain::repositories::token::TokenType;
-use domain::repositories::user::UserRepository;
+use domain::repositories::user::{UserCredential, UserRepository};
 use infra::repositories::postgres::user::{insert_user_query, PgUserRepository};
 use infra::repositories::postgres::PgRepository;
 use infra::routes::accounts::{SignInResBody, SignUpReqBody, SignUpResBody, UserResBody};
@@ -464,19 +464,54 @@ async fn user_can_not_sign_in_with_wrong_email() -> anyhow::Result<()> {
     Ok(())
 }
 
+/// 指定時間内にユーザーが2回サインインに失敗したときに、データベースに記録されているユーザーの試行開始日時が変更されず、
+/// サインイン試行回数が2になっていることを確認
+#[tokio::test]
+#[ignore]
+async fn number_of_sign_in_failures_was_incremented_when_the_user_failed_to_sign_in_twice(
+) -> anyhow::Result<()> {
+    // 準備
+    let app = spawn_test_app().await?;
+    let json = sign_up_request_body_json();
+    let body = sign_up_request_body(&json);
+    let sign_in_input = sign_up_input(body.clone(), &app.settings.password);
+    let _ = app.register_user(sign_in_input.clone()).await?;
+    let user_repo = PgUserRepository::new(app.pg_pool.clone());
+
+    // 実行
+    let mut credentials: Vec<UserCredential> = vec![];
+    for _ in 0..2 {
+        let _ = app
+            .sign_in(
+                body.email.clone(),
+                SecretString::new(String::from("1a@sE4tea%c-")),
+            )
+            .await?;
+        let credential = user_repo
+            .user_credential(sign_in_input.email.clone())
+            .await?
+            .unwrap();
+        credentials.push(credential);
+    }
+
+    // 検証
+    assert_eq!(1, credentials[0].number_of_failures);
+    assert_eq!(2, credentials[1].number_of_failures);
+    assert_eq!(credentials[0].attempted_at, credentials[1].attempted_at);
+
+    Ok(())
+}
+
 /// # サインイン統合テストリスト
 ///
-/// * Eメールが間違っているときにユーザーがサインインできず、ユーザーがサインインを試行した日時と
-///   サインイン試行回数の1がデータベースに記録されていることを確認
-/// * パスワードが間違っているときにユーザーがサインインできないことを確認
-/// * 指定したEメールアドレスを持つユーザーが登録されていないときに、NOT FOUNDが返されることを確認
-/// * 指定時間内にユーザーが2回サインインに失敗したときに、データベースに記録されているユーザーの
-///   試行開始日時が変更されず、サインイン試行回数が2になっていることを確認
 /// * ユーザーがサインインに失敗した後にサインインに成功したとき、サインイン失敗履歴がクリアされていることを確認
 /// * アカウントがロックされているユーザーがサインインできないことを確認
 /// * ユーザーが指定時間内に指定回数サインインに失敗したときに、アカウントがロックされていることを確認
 /// * ユーザーが指定時間内に指定回数未満でサインインに成功したときに、データベースに記録された
 ///   サインイン試行開始日時が`NULL`、サインイン試行回数が0になっていることを確認
+/// * ユーザーがサインインにユーザーのアカウントをロックする失敗回数より1つ少ない回数失敗して、
+///   サインインの失敗回数をカウントする時間が経過した後で再度サインインを試みたとき、サインイン試行開始日時
+///   が更新され、サインイン失敗回数が1になっていることを確認
 /// * `Redis`に登録されたアクセス及びリフレッシュトークンが、有効期限を超えたときに削除されている
 ///   ことを確認
 
