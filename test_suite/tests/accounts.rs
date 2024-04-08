@@ -360,12 +360,12 @@ fn inspect_token_cookie_spec(
     );
 }
 
-/// 間違ったパスワードでサインインしたときに、サインインできないことを確認
+/// 間違ったパスワードでサインインを試行したときに、サインインできないことを確認
 ///
 /// * サインインに失敗した最初の日時とサインインに失敗した回数が記録されていることを確認
 #[tokio::test]
 #[ignore]
-async fn user_can_not_sign_in_with_wrong_email() -> anyhow::Result<()> {
+async fn user_can_not_sign_in_with_wrong_password() -> anyhow::Result<()> {
     // 準備
     let app = spawn_test_app().await?;
     let json = sign_up_request_body_json();
@@ -422,6 +422,44 @@ async fn user_can_not_sign_in_with_wrong_email() -> anyhow::Result<()> {
         finished_at
     );
     assert_eq!(1, credential.number_of_failures);
+
+    Ok(())
+}
+
+/// 間違ったEメールアドレスでサインインを試行したときに、サインインできないことを確認
+#[tokio::test]
+#[ignore]
+async fn user_can_not_sign_in_with_wrong_email() -> anyhow::Result<()> {
+    // 準備
+    let app = spawn_test_app().await?;
+    let json = sign_up_request_body_json();
+    let body = sign_up_request_body(&json);
+
+    // 実行
+    let response = app
+        .sign_in(
+            String::from("wrong-email-address@example.com"),
+            body.password.clone(),
+        )
+        .await?;
+    let ResponseParts {
+        status_code,
+        headers,
+        body,
+    } = split_response(response).await?;
+    let context_type = headers.get(CONTENT_TYPE);
+    let body: ErrorResponseBody = serde_json::from_str(&body)?;
+
+    // 検証
+    assert_eq!(StatusCode::UNAUTHORIZED, status_code);
+    assert!(context_type.is_some());
+    let content_type = context_type.unwrap();
+    assert_eq!(CONTENT_TYPE_APPLICATION_JSON, content_type.to_str()?);
+    assert_eq!(Some(UseCaseErrorCode::Unauthorized as u32), body.error_code);
+    assert_eq!(
+        "Eメールアドレスまたはパスワードが間違っています。",
+        body.message
+    );
 
     Ok(())
 }
