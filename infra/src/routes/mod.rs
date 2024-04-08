@@ -1,4 +1,5 @@
 pub mod accounts;
+pub mod middleware;
 
 use std::{borrow::Cow, str::FromStr as _};
 
@@ -14,6 +15,10 @@ use use_cases::{UseCaseError, UseCaseErrorKind};
 
 /// リクエスト処理結果
 pub type ProcessRequestResult<T> = Result<T, ProcessRequestError>;
+
+/// アクセス／リフレッシュトークンキー
+pub const ACCESS_TOKEN_KEY: &str = "access";
+pub const REFRESH_TOKEN_KEY: &str = "refresh";
 
 /// リクエスト処理エラー
 ///

@@ -13,7 +13,7 @@ use domain::repositories::user::{UserCredential, UserRepository};
 use infra::repositories::postgres::user::{insert_user_query, PgUserRepository};
 use infra::repositories::postgres::PgRepository;
 use infra::routes::accounts::{SignInResBody, SignUpReqBody, SignUpResBody, UserResBody};
-use infra::routes::ErrorResponseBody;
+use infra::routes::{ErrorResponseBody, ACCESS_TOKEN_KEY, REFRESH_TOKEN_KEY};
 use use_cases::accounts::JWT_TOKEN_EXPRESSION;
 use use_cases::{UseCaseErrorCode, ERR_SAME_EMAIL_ADDRESS_IS_REGISTERED};
 
@@ -251,8 +251,8 @@ async fn user_can_sign_in() -> anyhow::Result<()> {
         set_cookies.insert(cookie.name().to_string(), cookie);
     }
     // `Set-Cookie`にアクセス／リフレッシュトークンが存在するか確認
-    let access_cookie = set_cookies.get("access").unwrap();
-    let refresh_cookie = set_cookies.get("refresh").unwrap();
+    let access_cookie = set_cookies.get(ACCESS_TOKEN_KEY).unwrap();
+    let refresh_cookie = set_cookies.get(REFRESH_TOKEN_KEY).unwrap();
     // アクセストークンのクッキーを検証
     inspect_token_cookie_spec(
         access_cookie,

@@ -12,7 +12,9 @@ use use_cases::accounts::{
 };
 use use_cases::UseCaseError;
 
-use crate::routes::{ProcessRequestError, ProcessRequestResult};
+use crate::routes::{
+    ProcessRequestError, ProcessRequestResult, ACCESS_TOKEN_KEY, REFRESH_TOKEN_KEY,
+};
 use crate::RequestContext;
 
 /// アカウントスコープを返却する。
@@ -173,13 +175,13 @@ pub async fn sign_in(
 
     // レスポンスヘッダに、クッキーにアクセス及びリクエストトークンを設定する`Set-Cookie`を追加する。
     let access_cookie = generate_token_cookie(
-        "access",
+        ACCESS_TOKEN_KEY,
         &output.access,
         output.access_expiration,
         http_server_settings,
     );
     let refresh_cookie = generate_token_cookie(
-        "refresh",
+        REFRESH_TOKEN_KEY,
         &output.access,
         output.refresh_expiration,
         http_server_settings,
