@@ -2,7 +2,7 @@ use async_trait::async_trait;
 use enum_display::EnumDisplay;
 use secrecy::SecretString;
 
-use crate::models::user::UserId;
+use crate::models::user::{UserId, UserPermissionCode};
 use crate::{DomainError, DomainResult};
 
 /// トークンリポジトリ
@@ -12,11 +12,14 @@ pub trait TokenRepository: Sync + Send {
     ///
     /// # 引数
     ///
+    /// * `user_id` - ユーザーID
     /// * `tokens` - トークンペア
+    /// * `user_permission_code` - ユーザー権限コード
     async fn register_token_pair<'a>(
         &self,
         user_id: UserId,
         tokens: TokenPairWithTtl<'a>,
+        user_permission_code: UserPermissionCode,
     ) -> DomainResult<()>;
 
     /// トークンからユーザーIDとトークンの種類を取得する。
@@ -53,6 +56,8 @@ pub struct TokenContent {
     pub user_id: UserId,
     /// トークンの種類
     pub token_type: TokenType,
+    /// ユーザーの権限コード
+    pub user_permission_code: UserPermissionCode,
 }
 
 /// トークンの種類

@@ -5,7 +5,7 @@ use redis::AsyncCommands;
 use secrecy::{ExposeSecret as _, SecretString};
 use sha2::{Digest, Sha256};
 
-use domain::models::user::UserId;
+use domain::models::user::{UserId, UserPermissionCode};
 use domain::repositories::token::{TokenContent, TokenPairWithTtl, TokenRepository, TokenType};
 use domain::{DomainError, DomainResult};
 
@@ -53,11 +53,12 @@ impl TokenRepository for RedisTokenRepository {
         &self,
         user_id: UserId,
         token_pair: TokenPairWithTtl<'a>,
+        user_permission_code: UserPermissionCode,
     ) -> DomainResult<()> {
         let access_key = generate_key(token_pair.access);
-        let access_value = generate_value(user_id, TokenType::Access);
+        let access_value = generate_value(user_id, TokenType::Access, user_permission_code);
         let refresh_key = generate_key(token_pair.refresh);
-        let refresh_value = generate_value(user_id, TokenType::Refresh);
+        let refresh_value = generate_value(user_id, TokenType::Refresh, user_permission_code);
         let mut conn = self.connection().await?;
         store(&mut conn, &access_key, &access_value, token_pair.access_ttl).await?;
         store(
@@ -90,11 +91,12 @@ impl TokenRepository for RedisTokenRepository {
         if value.is_none() {
             return Ok(None);
         }
-        let (user_id, token_type) = split_value(&value.unwrap())?;
+        let (user_id, token_type, user_permission_code) = split_value(&value.unwrap())?;
 
         Ok(Some(TokenContent {
             user_id,
             token_type,
+            user_permission_code,
         }))
     }
 }
@@ -116,8 +118,12 @@ fn generate_key(token: &SecretString) -> String {
 }
 
 /// Redisに登録する値を生成する。
-fn generate_value(user_id: UserId, token_type: TokenType) -> String {
-    format!("{}:{}", user_id.value, token_type)
+fn generate_value(
+    user_id: UserId,
+    token_type: TokenType,
+    user_permission_code: UserPermissionCode,
+) -> String {
+    format!("{}:{}:{}", user_id.value, token_type, user_permission_code)
 }
 
 /// Redisにキーと値を保存する。
@@ -145,8 +151,8 @@ async fn retrieve(conn: &mut RedisConnection, key: &str) -> DomainResult<Option<
     Ok(value)
 }
 
-/// 値をユーザーIDとトークンの種類に分離する。
-fn split_value(value: &str) -> DomainResult<(UserId, TokenType)> {
+/// 値をユーザーID、トークンの種類及びユーザーの権限に分離する。
+fn split_value(value: &str) -> DomainResult<(UserId, TokenType, UserPermissionCode)> {
     let mut values = value.split(':');
     let user_id = values.next().ok_or_else(|| {
         tracing::error!("{} ({}:{})", USER_ID_NOT_FOUND, file!(), line!());
@@ -169,8 +175,17 @@ fn split_value(value: &str) -> DomainResult<(UserId, TokenType)> {
         );
         DomainError::Unexpected(anyhow!("{}", TOKEN_TYPE_CONSTRUCTION_FAILED))
     })?;
+    let user_permission = values.next().ok_or_else(|| {
+        tracing::error!("{} ({}:{})", USER_PERMISSION_NOT_FOUND, file!(), line!());
+        DomainError::Unexpected(anyhow!("{}", USER_PERMISSION_NOT_FOUND))
+    })?;
+    println!("user_permission: {}", user_permission);
+    let user_permission_code = UserPermissionCode::try_from(user_permission).map_err(|_| {
+        tracing::error!("{} ({}:{})", USER_PERMISSION_NOT_FOUND, file!(), line!());
+        DomainError::Unexpected(anyhow!("{}", USER_PERMISSION_CONSTRUCTION_FAILED))
+    })?;
 
-    Ok((user_id, token_type))
+    Ok((user_id, token_type, user_permission_code))
 }
 
 const CONNECTION_ERROR: &str = "Redisに接続するときにエラーが発生しました。";
@@ -178,10 +193,14 @@ const STORE_ERROR: &str = "Redisにキーと値を保存するときにエラー
 const RETRIEVE_ERROR: &str = "Redisからキーで値を取得するときにエラーが発生しました。";
 const USER_ID_NOT_FOUND: &str = "Redisに登録された値からユーザーIDを取得できませんでした。";
 const TOKEN_TYPE_NOT_FOUND: &str = "Redisに登録された値からトークンの種類を取得できませんでした。";
+const USER_PERMISSION_NOT_FOUND: &str =
+    "Redisに登録された値からユーザーの権限を取得できませんでした。";
 const USER_ID_CONSTRUCTION_FAILED: &str =
-    "Redisに登録された値からユーザーIDを構築できませんでした。";
+    "Redisに登録された値からユーザーIDを確認できませんでした。";
 const TOKEN_TYPE_CONSTRUCTION_FAILED: &str =
-    "Redisに登録された値からトークンの種類を構築できませんでした。";
+    "Redisに登録された値からトークンの種類を確認できませんでした。";
+const USER_PERMISSION_CONSTRUCTION_FAILED: &str =
+    "Redisに登録された値からユーザー権限を確認できませんでした。";
 
 #[cfg(test)]
 mod tests {
@@ -192,8 +211,9 @@ mod tests {
     fn can_generate_user_id_and_token_type_string() -> anyhow::Result<()> {
         let user_id = UserId::default();
         let token_type = TokenType::Access;
-        let expected = format!("{}:{}", user_id, token_type);
-        let actual = generate_value(user_id, token_type);
+        let user_permission_code = UserPermissionCode::Admin;
+        let expected = format!("{}:{}:{}", user_id, token_type, user_permission_code);
+        let actual = generate_value(user_id, token_type, user_permission_code);
         assert_eq!(expected, actual);
 
         Ok(())
@@ -204,10 +224,15 @@ mod tests {
     fn can_split_user_id_and_token_type() -> anyhow::Result<()> {
         let expected_user_id = UserId::default();
         let expected_token_type = TokenType::Refresh;
-        let input = format!("{}:{}", expected_user_id, expected_token_type);
-        let (user_id, token_type) = split_value(&input)?;
+        let expected_user_permission_code = UserPermissionCode::General;
+        let input = format!(
+            "{}:{}:{}",
+            expected_user_id, expected_token_type, expected_user_permission_code
+        );
+        let (user_id, token_type, user_permission_code) = split_value(&input)?;
         assert_eq!(expected_user_id, user_id);
         assert_eq!(expected_token_type, token_type);
+        assert_eq!(expected_user_permission_code, user_permission_code);
 
         Ok(())
     }

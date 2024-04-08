@@ -12,7 +12,9 @@ use use_cases::accounts::{
 };
 use use_cases::UseCaseError;
 
-use crate::routes::{ProcessRequestError, ProcessRequestResult};
+use crate::routes::{
+    ProcessRequestError, ProcessRequestResult, ACCESS_TOKEN_KEY, REFRESH_TOKEN_KEY,
+};
 use crate::RequestContext;
 
 /// アカウントスコープを返却する。
@@ -33,7 +35,8 @@ pub async fn sign_up(
     let input = request_body.0;
 
     let email = EmailAddress::new(input.email).map_err(ProcessRequestError::from)?;
-    let user_permission_code = UserPermissionCode::new(input.user_permission_code);
+    let user_permission_code = UserPermissionCode::try_from(input.user_permission_code)
+        .map_err(ProcessRequestError::from)?;
     let password = RawPassword::new(input.password).map_err(ProcessRequestError::from)?;
     let family_name = FamilyName::new(input.family_name).map_err(ProcessRequestError::from)?;
     let given_name = GivenName::new(input.given_name).map_err(ProcessRequestError::from)?;
@@ -133,7 +136,7 @@ impl From<SignUpUseCaseOutput> for SignUpResBody {
             id: value.id.value,
             email: value.email.value,
             active: value.active,
-            user_permission_code: value.user_permission_code.value,
+            user_permission_code: value.user_permission_code as i16,
             family_name: value.family_name.value,
             given_name: value.given_name.value,
             postal_code: value.postal_code.value,
@@ -173,13 +176,13 @@ pub async fn sign_in(
 
     // レスポンスヘッダに、クッキーにアクセス及びリクエストトークンを設定する`Set-Cookie`を追加する。
     let access_cookie = generate_token_cookie(
-        "access",
+        ACCESS_TOKEN_KEY,
         &output.access,
         output.access_expiration,
         http_server_settings,
     );
     let refresh_cookie = generate_token_cookie(
-        "refresh",
+        REFRESH_TOKEN_KEY,
         &output.access,
         output.refresh_expiration,
         http_server_settings,
@@ -277,7 +280,7 @@ impl From<User> for UserResBody {
             email: value.email.value,
             active: value.active,
             user_permission: UserPermissionBody {
-                code: value.user_permission.code.value,
+                code: value.user_permission.code as i16,
                 name: value.user_permission.name.value,
             },
             family_name: value.family_name.value,

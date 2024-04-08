@@ -1,3 +1,4 @@
+use enum_display::EnumDisplay;
 use time::OffsetDateTime;
 
 use macros::{Builder, PrimitiveDisplay, StringPrimitive};
@@ -87,7 +88,41 @@ impl UserValidator for User {
 }
 
 /// ユーザー権限コード
-pub type UserPermissionCode = NumericCode<UserPermission, i16>;
+#[repr(i16)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EnumDisplay)]
+#[enum_display(case = "Lower")]
+pub enum UserPermissionCode {
+    Admin = 1,
+    General = 2,
+}
+
+impl TryFrom<i16> for UserPermissionCode {
+    type Error = DomainError;
+
+    fn try_from(value: i16) -> Result<Self, Self::Error> {
+        match value {
+            1 => Ok(UserPermissionCode::Admin),
+            2 => Ok(UserPermissionCode::General),
+            _ => Err(DomainError::Validation(
+                "ユーザー権限区分コードが範囲外です。".into(),
+            )),
+        }
+    }
+}
+
+impl TryFrom<&str> for UserPermissionCode {
+    type Error = DomainError;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        match value {
+            "admin" => Ok(UserPermissionCode::Admin),
+            "general" => Ok(UserPermissionCode::General),
+            _ => Err(DomainError::Validation(
+                "ユーザー権限区分が範囲外です。".into(),
+            )),
+        }
+    }
+}
 
 /// ユーザー権限
 #[derive(Debug, Clone)]
@@ -137,7 +172,7 @@ mod tests {
         let email = EmailAddress::new("foo@example.com").unwrap();
         let active = true;
         let user_permission = UserPermission::new(
-            UserPermissionCode::new(1),
+            UserPermissionCode::Admin,
             UserPermissionName::new("管理者").unwrap(),
         );
         let family_name = FamilyName::new("foo").unwrap();
@@ -195,7 +230,7 @@ mod tests {
         let email = EmailAddress::new("foo@example.com").unwrap();
         let active = true;
         let user_permission = UserPermission::new(
-            UserPermissionCode::new(1),
+            UserPermissionCode::Admin,
             UserPermissionName::new("管理者").unwrap(),
         );
         let family_name = FamilyName::new("foo").unwrap();
