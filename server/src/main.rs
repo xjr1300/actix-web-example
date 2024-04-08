@@ -4,7 +4,7 @@ use std::path::Path;
 use anyhow::anyhow;
 
 use configurations::settings::{
-    retrieve_app_settings, AppEnvironment, ENV_APP_ENVIRONMENT, ENV_APP_ENVIRONMENT_DEFAULT,
+    read_app_settings, AppEnvironment, ENV_APP_ENVIRONMENT, ENV_APP_ENVIRONMENT_DEFAULT,
     SETTINGS_DIR_NAME,
 };
 use infra::RequestContext;
@@ -23,7 +23,7 @@ async fn main() -> anyhow::Result<()> {
 
     // アプリケーション設定を取得
     let settings_dir = Path::new(SETTINGS_DIR_NAME);
-    let app_settings = retrieve_app_settings(app_env, settings_dir)?;
+    let app_settings = read_app_settings(app_env, settings_dir)?;
     // 認証設定を検証
     app_settings.authorization.validate()?;
 

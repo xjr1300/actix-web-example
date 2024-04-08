@@ -18,8 +18,8 @@ use use_cases::accounts::JWT_TOKEN_EXPRESSION;
 use use_cases::{UseCaseErrorCode, ERR_SAME_EMAIL_ADDRESS_IS_REGISTERED};
 
 use crate::helpers::{
-    sign_up_input, sign_up_request_body, sign_up_request_body_json, spawn_test_app, split_response,
-    tokyo_tower_sign_up_request_body, ResponseParts, CONTENT_TYPE_APPLICATION_JSON,
+    app_settings, sign_up_input, sign_up_request_body, sign_up_request_body_json, spawn_test_app,
+    split_response, tokyo_tower_sign_up_request_body, ResponseParts, CONTENT_TYPE_APPLICATION_JSON,
 };
 
 /// 妥当なユーザー情報で、ユーザーがサインアップできることを確認
@@ -27,7 +27,8 @@ use crate::helpers::{
 #[ignore]
 async fn user_can_sign_up_with_the_valid_info() -> anyhow::Result<()> {
     // 準備
-    let app = spawn_test_app().await?;
+    let settings = app_settings()?;
+    let app = spawn_test_app(settings).await?;
     let json_body = sign_up_request_body_json();
     let req_body: SignUpReqBody = serde_json::from_str(&json_body)?;
 
@@ -57,7 +58,8 @@ async fn user_can_sign_up_with_the_valid_info() -> anyhow::Result<()> {
 async fn user_can_not_sign_up_because_another_user_has_same_email_was_registered(
 ) -> anyhow::Result<()> {
     // 準備
-    let app = spawn_test_app().await?;
+    let settings = app_settings()?;
+    let app = spawn_test_app(settings).await?;
     let json_body = sign_up_request_body_json();
 
     // 実行
@@ -94,7 +96,8 @@ async fn user_can_not_sign_up_because_another_user_has_same_email_was_registered
 #[ignore]
 async fn user_can_not_sign_up_with_invalid_email() -> anyhow::Result<()> {
     // 準備
-    let app = spawn_test_app().await?;
+    let settings = app_settings()?;
+    let app = spawn_test_app(settings).await?;
     let json_body = sign_up_request_body_json().replace("foo@example.com", "foo");
 
     // 実行
@@ -127,7 +130,8 @@ async fn user_can_not_sign_up_with_invalid_email() -> anyhow::Result<()> {
 async fn user_can_not_sign_up_without_fixed_phone_number_and_mobile_phone_number(
 ) -> anyhow::Result<()> {
     // 準備
-    let app = spawn_test_app().await?;
+    let settings = app_settings()?;
+    let app = spawn_test_app(settings).await?;
     let json_body = sign_up_request_body_json()
         .replace(r#""099-472-1111""#, "null")
         .replace(r#""090-1234-5678""#, "null");
@@ -163,7 +167,8 @@ async fn user_can_not_sign_up_without_fixed_phone_number_and_mobile_phone_number
 #[ignore]
 async fn user_can_not_sign_up_when_user_permission_code_is_invalid() -> anyhow::Result<()> {
     // 準備
-    let app = spawn_test_app().await?;
+    let settings = app_settings()?;
+    let app = spawn_test_app(settings).await?;
     let json_body = sign_up_request_body_json()
         .replace(r#""userPermissionCode": 1,"#, r#""userPermissionCode": 0,"#);
 
@@ -208,7 +213,8 @@ async fn user_can_not_sign_up_when_user_permission_code_is_invalid() -> anyhow::
 #[ignore]
 async fn user_can_sign_in() -> anyhow::Result<()> {
     // 準備
-    let app = spawn_test_app().await?;
+    let settings = app_settings()?;
+    let app = spawn_test_app(settings).await?;
     let http_server_settings = &app.settings.http_server;
     let authorization_settings = &app.settings.authorization;
     let json = sign_up_request_body_json();
@@ -367,7 +373,8 @@ fn inspect_token_cookie_spec(
 #[ignore]
 async fn user_can_not_sign_in_with_wrong_password() -> anyhow::Result<()> {
     // 準備
-    let app = spawn_test_app().await?;
+    let settings = app_settings()?;
+    let app = spawn_test_app(settings).await?;
     let json = sign_up_request_body_json();
     let body = sign_up_request_body(&json);
     let sign_in_input = sign_up_input(body.clone(), &app.settings.password);
@@ -431,7 +438,8 @@ async fn user_can_not_sign_in_with_wrong_password() -> anyhow::Result<()> {
 #[ignore]
 async fn user_can_not_sign_in_with_wrong_email() -> anyhow::Result<()> {
     // 準備
-    let app = spawn_test_app().await?;
+    let settings = app_settings()?;
+    let app = spawn_test_app(settings).await?;
     let json = sign_up_request_body_json();
     let body = sign_up_request_body(&json);
 
@@ -471,7 +479,8 @@ async fn user_can_not_sign_in_with_wrong_email() -> anyhow::Result<()> {
 async fn number_of_sign_in_failures_was_incremented_when_the_user_failed_to_sign_in_twice(
 ) -> anyhow::Result<()> {
     // 準備
-    let app = spawn_test_app().await?;
+    let settings = app_settings()?;
+    let app = spawn_test_app(settings).await?;
     let json = sign_up_request_body_json();
     let body = sign_up_request_body(&json);
     let sign_in_input = sign_up_input(body.clone(), &app.settings.password);
@@ -502,16 +511,61 @@ async fn number_of_sign_in_failures_was_incremented_when_the_user_failed_to_sign
     Ok(())
 }
 
+/// ユーザーがサインインに失敗した後にサインインに成功したとき、サインイン失敗履歴がクリアされていることを確認
+#[tokio::test]
+#[ignore]
+async fn sign_in_failed_history_was_cleared_when_user_sign_in_succeeded() -> anyhow::Result<()> {
+    // 準備
+    let settings = app_settings()?;
+    let app = spawn_test_app(settings).await?;
+    let json = sign_up_request_body_json();
+    let body = sign_up_request_body(&json);
+    let sign_in_input = sign_up_input(body.clone(), &app.settings.password);
+    let _ = app.register_user(sign_in_input.clone()).await?;
+    let user_repo = PgUserRepository::new(app.pg_pool.clone());
+
+    // サインイン失敗
+    let _ = app
+        .sign_in(
+            body.email.clone(),
+            SecretString::new(String::from("1a@sE4tea%c-")),
+        )
+        .await?;
+    // 1秒スリープ
+    tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+    // サインイン成功
+    let response = app
+        .sign_in(body.email.clone(), body.password.clone())
+        .await?;
+    let ResponseParts { status_code, .. } = split_response(response).await?;
+    assert_eq!(StatusCode::OK, status_code);
+    // クレデンシャルを取得
+    let credential = user_repo
+        .user_credential(sign_in_input.email.clone())
+        .await?
+        .unwrap();
+
+    // 検証
+    assert_eq!(0, credential.number_of_failures);
+    assert!(credential.attempted_at.is_none());
+
+    Ok(())
+}
+
+/// ユーザーがサインインにユーザーのアカウントをロックする失敗回数より1つ少ない回数失敗して、
+/// サインインの失敗回数をカウントする時間が経過した後で再度サインインを試みたとき、サインイン試行開始日時
+/// が更新され、サインイン失敗回数が1になっていて、ユーザーのアカウントがロックされていないことを確認
+#[tokio::test]
+#[ignore]
+async fn a_failed_sign_in_after_the_period_has_elapsed_is_considered_the_first_failed(
+) -> anyhow::Result<()> {
+    Ok(())
+}
+
 /// # サインイン統合テストリスト
 ///
-/// * ユーザーがサインインに失敗した後にサインインに成功したとき、サインイン失敗履歴がクリアされていることを確認
 /// * アカウントがロックされているユーザーがサインインできないことを確認
 /// * ユーザーが指定時間内に指定回数サインインに失敗したときに、アカウントがロックされていることを確認
-/// * ユーザーが指定時間内に指定回数未満でサインインに成功したときに、データベースに記録された
-///   サインイン試行開始日時が`NULL`、サインイン試行回数が0になっていることを確認
-/// * ユーザーがサインインにユーザーのアカウントをロックする失敗回数より1つ少ない回数失敗して、
-///   サインインの失敗回数をカウントする時間が経過した後で再度サインインを試みたとき、サインイン試行開始日時
-///   が更新され、サインイン失敗回数が1になっていることを確認
 /// * `Redis`に登録されたアクセス及びリフレッシュトークンが、有効期限を超えたときに削除されている
 ///   ことを確認
 
@@ -520,7 +574,8 @@ async fn number_of_sign_in_failures_was_incremented_when_the_user_failed_to_sign
 #[ignore]
 async fn can_list_users() -> anyhow::Result<()> {
     // 準備
-    let app = spawn_test_app().await?;
+    let settings = app_settings()?;
+    let app = spawn_test_app(settings).await?;
     let repo = PgRepository::<i32>::new(app.pg_pool.clone());
     let json = sign_up_request_body_json();
     let body1 = sign_up_request_body(&json);

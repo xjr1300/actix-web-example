@@ -1,13 +1,14 @@
 use infra::repositories::postgres::{IsolationLevel, PgRepository};
 
-use crate::helpers::spawn_test_app;
+use crate::helpers::{app_settings, spawn_test_app};
 
 /// トランザクションを開始して、コミットできるか確認
 #[tokio::test]
 #[ignore]
 async fn transaction_works() -> anyhow::Result<()> {
     // 準備
-    let app = spawn_test_app().await?;
+    let settings = app_settings()?;
+    let app = spawn_test_app(settings).await?;
     let repo = PgRepository::<i32>::new(app.pg_pool.clone());
 
     // リードコミット

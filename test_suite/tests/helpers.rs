@@ -11,7 +11,7 @@ use sqlx::{Connection as _, Executor as _, PgConnection, PgPool};
 use uuid::Uuid;
 
 use configurations::settings::{
-    retrieve_app_settings, AppEnvironment, AppSettings, DatabaseSettings, ENV_APP_ENVIRONMENT,
+    read_app_settings, AppEnvironment, AppSettings, DatabaseSettings, ENV_APP_ENVIRONMENT,
     SETTINGS_DIR_NAME,
 };
 use domain::models::primitives::*;
@@ -128,24 +128,29 @@ impl TestApp {
     }
 }
 
-/// 統合テスト用のHTTPサーバーを起動する。
-///
-/// # 戻り値
-///
-/// 統合テスト用アプリ
-pub async fn spawn_test_app() -> anyhow::Result<TestApp> {
-    dotenvx::dotenv()?;
-    Lazy::force(&TRACING);
-
+pub fn app_settings() -> anyhow::Result<AppSettings> {
     // 環境変数からアプリケーションの動作環境を取得
     let app_env: AppEnvironment = std::env::var(ENV_APP_ENVIRONMENT)
         .unwrap_or_else(|_| String::from("development"))
         .into();
-
-    // アプリケーション設定を取得
+    // 環境変数や設定ファイルからアプリケーション設定を読み込み
     let dir = Path::new(env!("CARGO_MANIFEST_DIR"));
     let settings_dir = dir.join("..").join(SETTINGS_DIR_NAME);
-    let mut settings = retrieve_app_settings(app_env, settings_dir)?;
+    read_app_settings(app_env, settings_dir)
+}
+
+/// 統合テスト用のHTTPサーバーを起動する。
+///
+/// # 引数
+///
+/// * `settings` - アプリケーション設定
+///
+/// # 戻り値
+///
+/// 統合テスト用アプリ
+pub async fn spawn_test_app(mut settings: AppSettings) -> anyhow::Result<TestApp> {
+    dotenvx::dotenv()?;
+    Lazy::force(&TRACING);
 
     // テスト用のデータベースの名前を設定
     settings.database.name = format!("awe_test_{}", Uuid::new_v4()).replace('-', "_");
