@@ -229,7 +229,7 @@ pub fn generate_phc_password() -> PhcPassword {
 #[allow(dead_code)]
 pub fn generate_user_permission() -> UserPermission {
     UserPermission::new(
-        UserPermissionCode::new(1),
+        UserPermissionCode::Admin,
         UserPermissionName::new("管理者").unwrap(),
     )
 }
@@ -310,7 +310,7 @@ pub fn tokyo_tower_sign_up_request_body() -> SignUpReqBody {
 
 pub fn sign_up_input(body: SignUpReqBody, settings: &PasswordSettings) -> SignUpInput {
     let email = EmailAddress::new(body.email).unwrap();
-    let user_permission_code = UserPermissionCode::new(body.user_permission_code);
+    let user_permission_code = UserPermissionCode::try_from(body.user_permission_code).unwrap();
     let password = RawPassword::new(body.password).unwrap();
     let password = generate_phc_string(&password, settings).unwrap();
     let family_name = FamilyName::new(body.family_name).unwrap();

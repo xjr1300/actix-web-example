@@ -253,7 +253,7 @@ impl From<RetrievedUserRow> for User {
             email: EmailAddress::new(row.email).unwrap(),
             active: row.active,
             user_permission: UserPermission::new(
-                UserPermissionCode::new(row.user_permission_code),
+                UserPermissionCode::try_from(row.user_permission_code).unwrap(),
                 UserPermissionName::new(row.user_permission_name).unwrap(),
             ),
             family_name: FamilyName::new(row.family_name).unwrap(),
@@ -530,7 +530,7 @@ impl From<InsertedUserRow> for SignUpOutput {
             id: UserId::new(row.id),
             email: EmailAddress::new(row.email).unwrap(),
             active: row.active,
-            user_permission_code: UserPermissionCode::new(row.user_permission_code),
+            user_permission_code: UserPermissionCode::try_from(row.user_permission_code).unwrap(),
             family_name: FamilyName::new(row.family_name).unwrap(),
             given_name: GivenName::new(row.given_name).unwrap(),
             postal_code: PostalCode::new(row.postal_code).unwrap(),
@@ -578,7 +578,7 @@ pub fn insert_user_query<'q>(user: SignUpInput) -> PgQueryAs<'q, InsertedUserRow
     .bind(user.email.value)
     .bind(password)
     .bind(user.active)
-    .bind(user.user_permission_code.value)
+    .bind(user.user_permission_code as i16)
     .bind(user.family_name.value)
     .bind(user.given_name.value)
     .bind(user.postal_code.value)

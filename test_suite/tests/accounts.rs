@@ -184,16 +184,10 @@ async fn user_can_not_sign_up_when_user_permission_code_is_invalid() -> anyhow::
 
     // 検証
     assert_eq!(reqwest::StatusCode::BAD_REQUEST, status_code);
-    assert_eq!(
-        Some(UseCaseErrorCode::Validation as u32),
-        response_body.error_code
-    );
+    assert_eq!(None, response_body.error_code);
     let content_type = content_type.unwrap();
     assert_eq!(CONTENT_TYPE_APPLICATION_JSON, content_type.to_str()?);
-    assert_eq!(
-        Some(UseCaseErrorCode::Validation as u32),
-        response_body.error_code
-    );
+    assert_eq!(None, response_body.error_code);
     assert_eq!(
         "ユーザー権限区分コードが範囲外です。",
         response_body.message
