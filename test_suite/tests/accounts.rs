@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use actix_web::cookie::SameSite;
 use cookie::Cookie;
+use domain::models::user::UserPermissionCode;
 use regex::Regex;
 use reqwest::header::{CONTENT_TYPE, SET_COOKIE};
 use reqwest::StatusCode;
@@ -274,22 +275,30 @@ async fn user_can_sign_in() -> anyhow::Result<()> {
     assert_ne!(tokens.access, tokens.refresh);
 
     // Redisにアクセストークンが登録されており、アクセストークンをキーとした値が、
-    // 適切なユーザーIDとトークンの種類であるか確認
+    // 適切なユーザーID、トークンの種類及びユーザー権限コードであるか確認
     let access_token = SecretString::new(tokens.access.clone());
     let access_content = app.retrieve_token_content(&access_token).await;
     assert!(access_content.is_some());
     let access_content = access_content.unwrap();
     assert_eq!(sign_up_output.id, access_content.user_id);
     assert_eq!(TokenType::Access, access_content.token_type);
+    assert_eq!(
+        UserPermissionCode::Admin,
+        access_content.user_permission_code
+    );
 
     // Redisにリフレッシュトークンが登録されており、リフレッシュトークンをキーとした値が、
-    // 適切なユーザーIDとトークンの種類であるか確認
+    // 適切なユーザーID、トークンの種類及びユーザー権限コードであるか確認
     let refresh_token = SecretString::new(tokens.refresh.clone());
     let refresh_content = app.retrieve_token_content(&refresh_token).await;
     assert!(refresh_content.is_some());
-    let access_content = refresh_content.unwrap();
-    assert_eq!(sign_up_output.id, access_content.user_id);
-    assert_eq!(TokenType::Refresh, access_content.token_type);
+    let refresh_content = refresh_content.unwrap();
+    assert_eq!(sign_up_output.id, refresh_content.user_id);
+    assert_eq!(TokenType::Refresh, refresh_content.token_type);
+    assert_eq!(
+        UserPermissionCode::Admin,
+        refresh_content.user_permission_code
+    );
 
     // データベースに最後にログインした日時が記録されているか確認
     assert!(user.is_some());
