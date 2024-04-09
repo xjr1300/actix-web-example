@@ -67,6 +67,34 @@ impl std::fmt::Display for ProcessRequestError {
     }
 }
 
+impl ProcessRequestError {
+    pub fn new(
+        status_code: StatusCode,
+        error_code: Option<u32>,
+        message: impl Into<Cow<'static, str>>,
+    ) -> Self {
+        Self {
+            status_code,
+            body: ErrorResponseBody {
+                error_code,
+                message: message.into(),
+            },
+        }
+    }
+
+    pub fn without_error_code(
+        status_code: StatusCode,
+        message: impl Into<Cow<'static, str>>,
+    ) -> Self {
+        Self {
+            status_code,
+            body: ErrorResponseBody {
+                error_code: None,
+                message: message.into(),
+            },
+        }
+    }
+}
 /// エラーレスポンス・ボディ
 ///
 /// アプリケーションから返されるエラーレスポンスのボディを表現する。

@@ -23,8 +23,8 @@ pub fn build_http_server(listener: TcpListener, context: RequestContext) -> anyh
     // HttpServerを構築
     Ok(HttpServer::new(move || {
         App::new()
-            .wrap(ErrorHandlers::new().default_handler(default_error_handler))
             .wrap(TracingLogger::default())
+            .wrap(ErrorHandlers::new().default_handler(default_error_handler))
             .route("/health-check", web::get().to(health_check))
             .service(accounts_scope())
             .app_data(web::Data::new(context.clone()))
