@@ -508,7 +508,7 @@ pub fn clear_sign_in_failed_history_query<'q>(user_id: UserId) -> PgQueryAs<'q, 
     .bind(user_id.value)
 }
 
-#[derive(sqlx::FromRow)]
+#[derive(Debug, Clone, sqlx::FromRow)]
 pub struct InsertedUserRow {
     pub id: Uuid,
     pub email: String,

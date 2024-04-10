@@ -10,6 +10,7 @@
     "OWASP",
     "qself",
     "reqwest",
+    "splitn",
     "ttls"
   ]
 }
