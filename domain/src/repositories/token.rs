@@ -37,7 +37,7 @@ pub trait TokenRepository: Sync + Send {
     ) -> DomainResult<Option<TokenContent>>;
 }
 
-/// アクセストークン及びリフレッシュトークンとそれぞれの生存
+/// アクセストークン及びリフレッシュトークンとそれぞれの生存期間
 pub struct TokenPairWithTtl<'a> {
     /// アクセストークン
     pub access: &'a SecretString,
@@ -49,7 +49,9 @@ pub struct TokenPairWithTtl<'a> {
     pub refresh_ttl: u64,
 }
 
-/// トークンが保有している値
+/// トークンコンテンツ
+///
+/// アクセストークン及びリフレッシュトークンから取得できる情報を表現する。
 #[derive(Debug, Clone, Copy)]
 pub struct TokenContent {
     /// ユーザーID

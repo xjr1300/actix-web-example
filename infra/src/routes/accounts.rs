@@ -296,3 +296,15 @@ impl From<User> for UserResBody {
         }
     }
 }
+
+async fn user_detail(
+    _context: web::Data<RequestContext>,
+    user_id: web::ReqData<Uuid>,
+    user_permission_code: web::ReqData<UserPermissionCode>,
+) -> String {
+    format!(
+        "{}: {}",
+        user_id.into_inner(),
+        user_permission_code.into_inner()
+    )
+}
