@@ -1,5 +1,5 @@
 pub mod accounts;
-pub mod middleware;
+pub mod extractors;
 
 use std::{borrow::Cow, str::FromStr as _};
 

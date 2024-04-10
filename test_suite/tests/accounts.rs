@@ -2,25 +2,27 @@ use std::collections::HashMap;
 
 use actix_web::cookie::SameSite;
 use cookie::Cookie;
-use domain::models::user::UserPermissionCode;
 use regex::Regex;
 use reqwest::header::{CONTENT_TYPE, SET_COOKIE};
 use reqwest::StatusCode;
 use secrecy::SecretString;
 use time::{Duration, OffsetDateTime};
 
+use domain::models::user::UserPermissionCode;
 use domain::repositories::token::TokenType;
 use domain::repositories::user::{UserCredential, UserRepository};
-use infra::repositories::postgres::user::{insert_user_query, PgUserRepository};
-use infra::repositories::postgres::PgRepository;
+use infra::repositories::postgres::user::{InsertedUserRow, PgUserRepository};
+use infra::repositories::redis::token::RedisTokenRepository;
 use infra::routes::accounts::{SignInResBody, SignUpReqBody, SignUpResBody, UserResBody};
 use infra::routes::{ErrorResponseBody, ACCESS_TOKEN_KEY, REFRESH_TOKEN_KEY};
 use use_cases::accounts::JWT_TOKEN_EXPRESSION;
 use use_cases::{UseCaseErrorCode, ERR_SAME_EMAIL_ADDRESS_IS_REGISTERED};
 
 use crate::helpers::{
-    app_settings, sign_up_input, sign_up_request_body, sign_up_request_body_json, spawn_test_app,
-    split_response, tokyo_tower_sign_up_request_body, ResponseParts, CONTENT_TYPE_APPLICATION_JSON,
+    admin_user_sign_in_use_case_input, admin_user_sign_up_body, admin_user_sign_up_body_json,
+    app_settings, general_user_sign_in_use_case_input, register_admin_and_general_user,
+    register_admin_user, register_general_user, sign_up_input, spawn_test_app, split_response,
+    ResponseParts, ADMIN_USER_EMAIL_ADDRESS, CONTENT_TYPE_APPLICATION_JSON,
 };
 
 /// 妥当なユーザー情報で、ユーザーがサインアップできることを確認
@@ -30,7 +32,7 @@ async fn user_can_sign_up_with_the_valid_info() -> anyhow::Result<()> {
     // 準備
     let settings = app_settings()?;
     let app = spawn_test_app(settings).await?;
-    let json_body = sign_up_request_body_json();
+    let json_body = admin_user_sign_up_body_json();
     let req_body: SignUpReqBody = serde_json::from_str(&json_body)?;
 
     // 実行
@@ -61,7 +63,7 @@ async fn user_can_not_sign_up_because_another_user_has_same_email_was_registered
     // 準備
     let settings = app_settings()?;
     let app = spawn_test_app(settings).await?;
-    let json_body = sign_up_request_body_json();
+    let json_body = admin_user_sign_up_body_json();
 
     // 実行
     let _ = app.sign_up(json_body.clone()).await?;
@@ -99,7 +101,7 @@ async fn user_can_not_sign_up_with_invalid_email() -> anyhow::Result<()> {
     // 準備
     let settings = app_settings()?;
     let app = spawn_test_app(settings).await?;
-    let json_body = sign_up_request_body_json().replace("foo@example.com", "foo");
+    let json_body = admin_user_sign_up_body_json().replace(ADMIN_USER_EMAIL_ADDRESS, "asdf");
 
     // 実行
     let response = app.sign_up(json_body).await?;
@@ -133,7 +135,7 @@ async fn user_can_not_sign_up_without_fixed_phone_number_and_mobile_phone_number
     // 準備
     let settings = app_settings()?;
     let app = spawn_test_app(settings).await?;
-    let json_body = sign_up_request_body_json()
+    let json_body = admin_user_sign_up_body_json()
         .replace(r#""099-472-1111""#, "null")
         .replace(r#""090-1234-5678""#, "null");
 
@@ -170,7 +172,7 @@ async fn user_can_not_sign_up_when_user_permission_code_is_invalid() -> anyhow::
     // 準備
     let settings = app_settings()?;
     let app = spawn_test_app(settings).await?;
-    let json_body = sign_up_request_body_json()
+    let json_body = admin_user_sign_up_body_json()
         .replace(r#""userPermissionCode": 1,"#, r#""userPermissionCode": 0,"#);
 
     // 実行
@@ -212,8 +214,8 @@ async fn user_can_sign_in() -> anyhow::Result<()> {
     let app = spawn_test_app(settings).await?;
     let http_server_settings = &app.settings.http_server;
     let authorization_settings = &app.settings.authorization;
-    let json = sign_up_request_body_json();
-    let body = sign_up_request_body(&json);
+    let json = admin_user_sign_up_body_json();
+    let body = admin_user_sign_up_body(&json);
     let sign_in_input = sign_up_input(body.clone(), &app.settings.password);
     let sign_up_output = app.register_user(sign_in_input.clone()).await?;
 
@@ -378,8 +380,8 @@ async fn user_can_not_sign_in_with_wrong_password() -> anyhow::Result<()> {
     // 準備
     let settings = app_settings()?;
     let app = spawn_test_app(settings).await?;
-    let json = sign_up_request_body_json();
-    let body = sign_up_request_body(&json);
+    let json = admin_user_sign_up_body_json();
+    let body = admin_user_sign_up_body(&json);
     let sign_in_input = sign_up_input(body.clone(), &app.settings.password);
     let sign_up_output = app.register_user(sign_in_input.clone()).await?;
 
@@ -443,8 +445,8 @@ async fn user_can_not_sign_in_with_wrong_email() -> anyhow::Result<()> {
     // 準備
     let settings = app_settings()?;
     let app = spawn_test_app(settings).await?;
-    let json = sign_up_request_body_json();
-    let body = sign_up_request_body(&json);
+    let json = admin_user_sign_up_body_json();
+    let body = admin_user_sign_up_body(&json);
 
     // 実行
     let response = app
@@ -484,8 +486,8 @@ async fn number_of_sign_in_failures_was_incremented_when_the_user_failed_to_sign
     // 準備
     let settings = app_settings()?;
     let app = spawn_test_app(settings).await?;
-    let json = sign_up_request_body_json();
-    let body = sign_up_request_body(&json);
+    let json = admin_user_sign_up_body_json();
+    let body = admin_user_sign_up_body(&json);
     let sign_in_input = sign_up_input(body.clone(), &app.settings.password);
     let _ = app.register_user(sign_in_input.clone()).await?;
     let user_repo = PgUserRepository::new(app.pg_pool.clone());
@@ -521,8 +523,8 @@ async fn sign_in_failed_history_was_cleared_when_user_sign_in_succeeded() -> any
     // 準備
     let settings = app_settings()?;
     let app = spawn_test_app(settings).await?;
-    let json = sign_up_request_body_json();
-    let body = sign_up_request_body(&json);
+    let json = admin_user_sign_up_body_json();
+    let body = admin_user_sign_up_body(&json);
     let sign_in_input = sign_up_input(body.clone(), &app.settings.password);
     let _ = app.register_user(sign_in_input.clone()).await?;
     let user_repo = PgUserRepository::new(app.pg_pool.clone());
@@ -567,8 +569,8 @@ async fn a_failed_sign_in_after_the_period_has_elapsed_is_considered_the_first_f
     settings.authorization.number_of_failures = 2;
     settings.authorization.attempting_seconds = 2;
     let app = spawn_test_app(settings).await?;
-    let json = sign_up_request_body_json();
-    let body = sign_up_request_body(&json);
+    let json = admin_user_sign_up_body_json();
+    let body = admin_user_sign_up_body(&json);
     let sign_in_input = sign_up_input(body.clone(), &app.settings.password);
     let _ = app.register_user(sign_in_input.clone()).await?;
     let user_repo = PgUserRepository::new(app.pg_pool.clone());
@@ -624,8 +626,8 @@ async fn a_failed_sign_in_after_the_period_has_elapsed_is_considered_the_first_f
 async fn the_user_locked_the_account_can_not_sign_in() -> anyhow::Result<()> {
     let settings = app_settings()?;
     let app = spawn_test_app(settings).await?;
-    let json = sign_up_request_body_json();
-    let body = sign_up_request_body(&json);
+    let json = admin_user_sign_up_body_json();
+    let body = admin_user_sign_up_body(&json);
     let mut sign_in_input = sign_up_input(body.clone(), &app.settings.password);
     sign_in_input.active = false;
     let _ = app.register_user(sign_in_input.clone()).await?;
@@ -649,8 +651,8 @@ async fn the_user_account_was_locked_after_the_user_failed_to_sign_in_specified_
     let mut settings = app_settings()?;
     settings.authorization.number_of_failures = 2;
     let app = spawn_test_app(settings).await?;
-    let json = sign_up_request_body_json();
-    let body = sign_up_request_body(&json);
+    let json = admin_user_sign_up_body_json();
+    let body = admin_user_sign_up_body(&json);
     let sign_in_input = sign_up_input(body.clone(), &app.settings.password);
     let _ = app.register_user(sign_in_input.clone()).await?;
     let user_repo = PgUserRepository::new(app.pg_pool.clone());
@@ -685,8 +687,8 @@ async fn the_tokens_were_removed_from_the_redis_when_specified_times_passed() ->
     settings.authorization.access_token_seconds = 1;
     settings.authorization.refresh_token_seconds = 2;
     let app = spawn_test_app(settings).await?;
-    let json = sign_up_request_body_json();
-    let body = sign_up_request_body(&json);
+    let json = admin_user_sign_up_body_json();
+    let body = admin_user_sign_up_body(&json);
     let sign_in_input = sign_up_input(body.clone(), &app.settings.password);
     let _ = app.register_user(sign_in_input.clone()).await?;
 
@@ -711,27 +713,32 @@ async fn the_tokens_were_removed_from_the_redis_when_specified_times_passed() ->
     Ok(())
 }
 
-/// データベースに登録したユーザーをリストできることを確認
+/// 管理権限をもつユーザーが、`Authorization`ヘッダでアクセストークンを渡して、ユーザーリストを取得できることを確認
 #[tokio::test]
 #[ignore]
-async fn can_list_users() -> anyhow::Result<()> {
+async fn admin_user_can_list_users_with_access_token_by_authorization_header() -> anyhow::Result<()>
+{
     // 準備
     let settings = app_settings()?;
-    let app = spawn_test_app(settings).await?;
-    let repo = PgRepository::<i32>::new(app.pg_pool.clone());
-    let json = sign_up_request_body_json();
-    let body1 = sign_up_request_body(&json);
-    let input1 = sign_up_input(body1.clone(), &app.settings.password);
-    let body2 = tokyo_tower_sign_up_request_body();
-    let input2 = sign_up_input(body2.clone(), &app.settings.password);
+    let app = spawn_test_app(settings.clone()).await?;
+    let user_repo = PgUserRepository::new(app.pg_pool.clone());
+    let token_repo = RedisTokenRepository::new(app.redis_pool.clone());
+    // 管理者ユーザーと一般ユーザーを登録
+    let (admin_user, general_user) =
+        register_admin_and_general_user(&settings.password, &user_repo).await?;
+    // 管理者ユーザーの認証トークンを取得
+    let admin_input = admin_user_sign_in_use_case_input();
+    let tokens = use_cases::accounts::sign_in(
+        &app.settings.password,
+        &app.settings.authorization,
+        user_repo,
+        token_repo,
+        admin_input,
+    )
+    .await?;
 
-    // 2ユーザーがサインイン
-    let mut tx = repo.begin().await?;
-    insert_user_query(input1).fetch_one(&mut *tx).await?;
-    insert_user_query(input2).fetch_one(&mut *tx).await?;
-    tx.commit().await?;
     // ユーザーのリストをリクエスト
-    let response = app.list_users().await?;
+    let response = app.list_users(Some(tokens.access), Some(true)).await?;
     let ResponseParts {
         status_code,
         headers,
@@ -747,22 +754,116 @@ async fn can_list_users() -> anyhow::Result<()> {
     assert_eq!(CONTENT_TYPE_APPLICATION_JSON, content_type.to_str()?);
     assert_eq!(2, users.len());
     assert!(
-        user_res_body_is_match_sign_up_req_body(&body1, &users[0]),
+        user_res_body_is_match(&admin_user, &users[0]),
         "{:?} is not match to {:?}",
-        body1,
+        admin_user,
         users[0]
     );
     assert!(
-        user_res_body_is_match_sign_up_req_body(&body2, &users[1]),
+        user_res_body_is_match(&general_user, &users[1]),
         "{:?} is not match to {:?}",
-        body2,
+        general_user,
         users[1]
     );
 
     Ok(())
 }
 
-fn user_res_body_is_match_sign_up_req_body(req: &SignUpReqBody, res: &UserResBody) -> bool {
+/// 管理権限をもつユーザーが、クッキーでアクセストークンを渡して、ユーザーリストを取得できることを確認
+#[tokio::test]
+#[ignore]
+async fn admin_user_can_list_users_with_access_token_by_cookie() -> anyhow::Result<()> {
+    // 準備
+    let settings = app_settings()?;
+    let app = spawn_test_app(settings.clone()).await?;
+    let user_repo = PgUserRepository::new(app.pg_pool.clone());
+    let token_repo = RedisTokenRepository::new(app.redis_pool.clone());
+    // 管理者ユーザーと一般ユーザーを登録
+    let _ = register_admin_user(&settings.password, &user_repo).await?;
+    // 管理者ユーザーの認証トークンを取得
+    let admin_input = admin_user_sign_in_use_case_input();
+    let tokens = use_cases::accounts::sign_in(
+        &app.settings.password,
+        &app.settings.authorization,
+        user_repo,
+        token_repo,
+        admin_input,
+    )
+    .await?;
+
+    // ユーザーのリストをリクエスト
+    let response = app.list_users(Some(tokens.access), Some(false)).await?;
+    let ResponseParts { status_code, .. } = split_response(response).await?;
+
+    // 検証
+    assert_eq!(StatusCode::OK, status_code);
+
+    Ok(())
+}
+
+/// 認証されていないユーザーがユーザーをリストできないことを確認
+#[tokio::test]
+#[ignore]
+async fn non_authenticated_user_can_not_list_users() -> anyhow::Result<()> {
+    // 準備
+    let settings = app_settings()?;
+    let app = spawn_test_app(settings).await?;
+
+    // ユーザーのリストをリクエスト
+    let response = app.list_users(None, None).await?;
+    let ResponseParts {
+        status_code,
+        headers,
+        body,
+    } = split_response(response).await?;
+    let content_type = headers.get(CONTENT_TYPE);
+    let body: ErrorResponseBody = serde_json::from_str(&body)?;
+
+    // 検証
+    assert_eq!(StatusCode::FORBIDDEN, status_code);
+    assert!(content_type.is_some());
+    let content_type = content_type.unwrap();
+    assert_eq!(CONTENT_TYPE_APPLICATION_JSON, content_type.to_str()?);
+    assert!(body.error_code.is_none());
+    assert_eq!("アクセスする権限がありません。", body.message);
+
+    Ok(())
+}
+
+/// 一般権限をもつユーザーがユーザーリストを取得できないことを確認
+#[tokio::test]
+#[ignore]
+async fn general_user_can_not_list_users() -> anyhow::Result<()> {
+    // 準備
+    let settings = app_settings()?;
+    let app = spawn_test_app(settings).await?;
+    let user_repo = PgUserRepository::new(app.pg_pool.clone());
+    let token_repo = RedisTokenRepository::new(app.redis_pool.clone());
+    // 一般ユーザーのアカウントを登録
+    let _ = register_general_user(&app.settings.password, &user_repo).await?;
+
+    // 一般ユーザーの認証トークンを取得
+    let general_input = general_user_sign_in_use_case_input();
+    let tokens = use_cases::accounts::sign_in(
+        &app.settings.password,
+        &app.settings.authorization,
+        user_repo,
+        token_repo,
+        general_input,
+    )
+    .await?;
+
+    // ユーザーのリストをリクエスト
+    let response = app.list_users(Some(tokens.access), Some(true)).await?;
+    let ResponseParts { status_code, .. } = split_response(response).await?;
+
+    // 検証
+    assert_eq!(StatusCode::FORBIDDEN, status_code);
+
+    Ok(())
+}
+
+fn user_res_body_is_match(req: &InsertedUserRow, res: &UserResBody) -> bool {
     if req.email != res.email {
         return false;
     };

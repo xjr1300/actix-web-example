@@ -179,7 +179,6 @@ fn split_value(value: &str) -> DomainResult<(UserId, TokenType, UserPermissionCo
         tracing::error!("{} ({}:{})", USER_PERMISSION_NOT_FOUND, file!(), line!());
         DomainError::Unexpected(anyhow!("{}", USER_PERMISSION_NOT_FOUND))
     })?;
-    println!("user_permission: {}", user_permission);
     let user_permission_code = UserPermissionCode::try_from(user_permission).map_err(|_| {
         tracing::error!("{} ({}:{})", USER_PERMISSION_NOT_FOUND, file!(), line!());
         DomainError::Unexpected(anyhow!("{}", USER_PERMISSION_CONSTRUCTION_FAILED))

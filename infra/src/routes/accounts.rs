@@ -1,10 +1,10 @@
 use actix_web::cookie::Cookie;
 use actix_web::{web, HttpResponse};
-use configurations::settings::HttpServerSettings;
 use secrecy::{ExposeSecret, SecretString};
 use time::OffsetDateTime;
 use uuid::Uuid;
 
+use configurations::settings::HttpServerSettings;
 use domain::models::primitives::*;
 use domain::models::user::{User, UserPermissionCode};
 use use_cases::accounts::{
@@ -12,6 +12,7 @@ use use_cases::accounts::{
 };
 use use_cases::UseCaseError;
 
+use crate::routes::extractors::{AdminContext, UserOwnContext};
 use crate::routes::{
     ProcessRequestError, ProcessRequestResult, ACCESS_TOKEN_KEY, REFRESH_TOKEN_KEY,
 };
@@ -22,7 +23,14 @@ pub fn accounts_scope() -> actix_web::Scope {
     web::scope("/accounts")
         .service(web::resource("/sign-up").route(web::post().to(sign_up)))
         .service(web::resource("/sign-in").route(web::post().to(sign_in)))
-        .service(web::resource("/users").route(web::get().to(list_users)))
+        .service(
+            web::scope("/users")
+                .service(web::resource("").route(web::get().to(list_users)))
+                .service(
+                    web::scope("/{user_id}")
+                        .service(web::resource("").route(web::get().to(user_detail))),
+                ),
+        )
 }
 
 /// サインアップ
@@ -238,8 +246,11 @@ impl From<&SignInUseCaseOutput> for SignInResBody {
 }
 
 /// ユーザーリスト
-async fn list_users(context: web::Data<RequestContext>) -> ProcessRequestResult<HttpResponse> {
-    let repo = context.user_repository();
+async fn list_users(
+    request_context: web::Data<RequestContext>,
+    _admin_context: AdminContext,
+) -> ProcessRequestResult<HttpResponse> {
+    let repo = request_context.user_repository();
     let users = use_cases::accounts::list_users(repo)
         .await?
         .into_iter()
@@ -295,4 +306,11 @@ impl From<User> for UserResBody {
             updated_at: value.updated_at,
         }
     }
+}
+
+async fn user_detail(
+    _request_context: web::Data<RequestContext>,
+    user_own_context: UserOwnContext,
+) -> String {
+    format!("user_id: {}", user_own_context.user_id,)
 }

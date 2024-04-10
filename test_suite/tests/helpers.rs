@@ -8,6 +8,7 @@ use once_cell::sync::Lazy;
 use reqwest::header::{HeaderValue, CONTENT_TYPE};
 use secrecy::{ExposeSecret, SecretString};
 use sqlx::{Connection as _, Executor as _, PgConnection, PgPool};
+use use_cases::accounts::SignInUseCaseInput;
 use uuid::Uuid;
 
 use configurations::settings::{
@@ -19,7 +20,7 @@ use domain::models::user::{UserId, UserPermission, UserPermissionCode, UserPermi
 use domain::repositories::token::TokenContent;
 use domain::repositories::token::TokenRepository;
 use domain::repositories::user::{SignUpInput, SignUpInputBuilder, SignUpOutput, UserRepository};
-use infra::repositories::postgres::user::PgUserRepository;
+use infra::repositories::postgres::user::{insert_user_query, InsertedUserRow, PgUserRepository};
 use infra::routes::accounts::SignUpReqBody;
 use infra::RequestContext;
 use server::startup::build_http_server;
@@ -106,13 +107,28 @@ impl TestApp {
             .map_err(|e| e.into())
     }
 
-    pub async fn list_users(&self) -> anyhow::Result<reqwest::Response> {
+    /// ユーザーの一覧をリクエストする。
+    ///
+    /// # 引数
+    ///
+    /// * `token` - アクセストークン
+    /// * `auth_header` - アクセストークンを`Authorization`ヘッダに追加して送信するかを示すフラグ
+    ///
+    /// アクセストークンを送信しない場合は、`token`と`auth_header`に`None`を指定する。
+    ///
+    /// アクセストークンを`Authorization`ヘッダに追加して送信する場合は`true`を指定して、
+    /// クッキーに追加して送信する場合は`false`を指定する。
+    pub async fn list_users(
+        &self,
+        token: Option<SecretString>,
+        auth_header: Option<bool>,
+    ) -> anyhow::Result<reqwest::Response> {
         let client = reqwest::Client::new();
-        client
-            .get(&format!("{}/accounts/users", self.root_uri))
-            .send()
-            .await
-            .map_err(|e| e.into())
+        let mut builder = client.get(format!("{}/accounts/users", self.root_uri));
+        if token.is_some() {
+            builder = append_access_token(builder, token.unwrap(), auth_header.unwrap());
+        }
+        builder.send().await.map_err(|e| e.into())
     }
 
     pub async fn register_user(&self, input: SignUpInput) -> anyhow::Result<SignUpOutput> {
@@ -217,9 +233,13 @@ pub async fn configure_database(settings: &DatabaseSettings) -> anyhow::Result<P
 /// cspell: disable-next-line
 pub const RAW_PHC_PASSWORD: &str = "$argon2id$v=19$m=65536,t=2,p=1$gZiV/M1gPc22ElAH/Jh1Hw$CWOrkoo7oJBQ/iyh7uJ0LO2aLEfrHwTWllSAxT0zRno";
 
+/// ユーザーのEメールアドレス
+pub const ADMIN_USER_EMAIL_ADDRESS: &str = "admin@example.com";
+pub const GENERAL_USER_EMAIL_ADDRESS: &str = "general@example.com";
+
 /// 未加工なパスワードとして使用できる文字列
-pub const VALID_RAW_PASSWORD1: &str = "Az3#Za3@";
-pub const VALID_RAW_PASSWORD2: &str = "Yd3*_#Za";
+pub const ADMIN_USER_RAW_PASSWORD: &str = "Az3#Za3@";
+pub const GENERAL_USER_RAW_PASSWORD: &str = "Yd3*_#Za";
 
 #[allow(dead_code)]
 pub fn generate_phc_password() -> PhcPassword {
@@ -269,11 +289,11 @@ pub fn generate_optional_remarks() -> OptionalRemarks {
     OptionalRemarks::try_from("すもももももももものうち。もももすももももものうち。").unwrap()
 }
 
-pub fn sign_up_request_body_json() -> String {
+pub fn admin_user_sign_up_body_json() -> String {
     format!(
         r#"
         {{
-            "email": "foo@example.com",
+            "email": "{}",
             "password": "{}",
             "userPermissionCode": 1,
             "familyName": "山田",
@@ -285,18 +305,18 @@ pub fn sign_up_request_body_json() -> String {
             "remarks": "日本に実際に存在するややこしい地名です。"
         }}
         "#,
-        VALID_RAW_PASSWORD1
+        ADMIN_USER_EMAIL_ADDRESS, ADMIN_USER_RAW_PASSWORD
     )
 }
 
-pub fn sign_up_request_body(body: &str) -> SignUpReqBody {
+pub fn admin_user_sign_up_body(body: &str) -> SignUpReqBody {
     serde_json::from_str::<SignUpReqBody>(body).unwrap()
 }
 
-pub fn tokyo_tower_sign_up_request_body() -> SignUpReqBody {
+pub fn general_user_sign_up_body() -> SignUpReqBody {
     SignUpReqBody {
-        email: String::from("tokyo@asdf.com"),
-        password: SecretString::new(String::from(VALID_RAW_PASSWORD2)),
+        email: String::from(GENERAL_USER_EMAIL_ADDRESS),
+        password: SecretString::new(String::from(GENERAL_USER_RAW_PASSWORD)),
         user_permission_code: 2,
         family_name: String::from("東京"),
         given_name: String::from("タワー"),
@@ -337,4 +357,79 @@ pub fn sign_up_input(body: SignUpReqBody, settings: &PasswordSettings) -> SignUp
         .remarks(remarks)
         .build()
         .unwrap()
+}
+
+pub fn admin_user_sign_in_use_case_input() -> SignInUseCaseInput {
+    SignInUseCaseInput {
+        email: EmailAddress::new(String::from(ADMIN_USER_EMAIL_ADDRESS)).unwrap(),
+        password: RawPassword::new(SecretString::new(String::from(ADMIN_USER_RAW_PASSWORD)))
+            .unwrap(),
+    }
+}
+
+pub fn general_user_sign_in_use_case_input() -> SignInUseCaseInput {
+    SignInUseCaseInput {
+        email: EmailAddress::new(String::from(GENERAL_USER_EMAIL_ADDRESS)).unwrap(),
+        password: RawPassword::new(SecretString::new(String::from(GENERAL_USER_RAW_PASSWORD)))
+            .unwrap(),
+    }
+}
+
+fn append_access_token(
+    mut builder: reqwest::RequestBuilder,
+    token: SecretString,
+    auth_header: bool,
+) -> reqwest::RequestBuilder {
+    if auth_header {
+        builder = builder.header(
+            reqwest::header::AUTHORIZATION,
+            format!("Bearer {}", token.expose_secret()),
+        );
+    } else {
+        builder = builder.header(
+            reqwest::header::COOKIE,
+            format!("access={}", token.expose_secret()),
+        );
+    }
+
+    builder
+}
+
+pub async fn register_admin_and_general_user(
+    password_settings: &PasswordSettings,
+    repo: &PgUserRepository,
+) -> anyhow::Result<(InsertedUserRow, InsertedUserRow)> {
+    let admin = register_admin_user(password_settings, repo).await?;
+    let general = register_general_user(password_settings, repo).await?;
+
+    Ok((admin, general))
+}
+
+pub async fn register_admin_user(
+    password_settings: &PasswordSettings,
+    repo: &PgUserRepository,
+) -> anyhow::Result<InsertedUserRow> {
+    let json = admin_user_sign_up_body_json();
+    let body = admin_user_sign_up_body(&json);
+    let input = sign_up_input(body, password_settings);
+
+    let mut tx = repo.begin().await?;
+    let user = insert_user_query(input).fetch_one(&mut *tx).await?;
+    tx.commit().await?;
+
+    Ok(user)
+}
+
+pub async fn register_general_user(
+    password_settings: &PasswordSettings,
+    repo: &PgUserRepository,
+) -> anyhow::Result<InsertedUserRow> {
+    let body = general_user_sign_up_body();
+    let input = sign_up_input(body, password_settings);
+
+    let mut tx = repo.begin().await?;
+    let user = insert_user_query(input).fetch_one(&mut *tx).await?;
+    tx.commit().await?;
+
+    Ok(user)
 }

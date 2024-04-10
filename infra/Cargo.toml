@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-actix-web = { version = "4.5.1", features = ["cookie"] }
+actix-web = { version = "4.5.1", features = ["cookie", "cookies"] }
 anyhow = "1.0.81"
 async-trait = "0.1.79"
 configurations = { path = "../configurations" }
